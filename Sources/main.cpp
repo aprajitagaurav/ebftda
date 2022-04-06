@@ -13,8 +13,8 @@
 using namespace std;
 
 int main(int argc, char** argv) {
-    // change to read from command line / MPI ...
-    // support multiple files per process
+    // TODO : change to read from command line / MPI ...
+    //        support multiple files per process
     string inputFile = "./data/eth-tx-0-999999.txt";
 
     // Input file reading
