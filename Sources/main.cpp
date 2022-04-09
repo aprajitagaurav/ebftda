@@ -59,8 +59,8 @@ void readFiles(int processorId) {
     //     std::cout << "Processor Id: " << processorId << " From: " << transactions.at(i).getFrom() << " To: " << transactions.at(i).getTo() << "\n";
     // }
 
-    for (std::set<std::string>::iterator it=addresses.begin(); it!=addresses.end(); ++it)
-        std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
+    // for (std::set<std::string>::iterator it=addresses.begin(); it!=addresses.end(); ++it)
+    //     std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
 
 }
 
