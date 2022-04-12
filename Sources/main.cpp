@@ -20,7 +20,6 @@ int processorId;
 int fileCount = 5;
 
 void readFiles(int processorId) {
-
     string inputFileName = "./data/eth-tx-";
 
     int filesPerProcessor = ceil(fileCount/(float) numberOfProcessors);
@@ -61,7 +60,33 @@ void readFiles(int processorId) {
 
     // for (std::set<std::string>::iterator it=addresses.begin(); it!=addresses.end(); ++it)
     //     std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
+}
 
+void generateGraph(int processorId){
+    // TODO : persist throughout processor's runtime...
+    //  1. store unsorted transactions
+    //  2. sorted transactions
+    //  3. unsorted nodes
+    //  4. sorted nodes
+    //  5. maintain a list of per processor range of global IDs based on received data
+    //  6. adjacency list being returned by generateGraph
+
+    // TODO : sort addresses using parallel sample sort []
+
+    // TODO : remove duplicates
+
+    // TODO : global ID assignment using parallel scan
+
+    // TODO : step 5 - read the old transactions and assign local IDs to them (from the old address set)
+
+    // TODO : local ID (old address ID) -> global ID
+    //      : local first
+    //      : send receive stuff
+
+    // TODO : sort transactions (by global IDs) (edges) - parallel sample sort,
+    //  partition such that source addresses exist in the processor and all edges of source node exist together
+
+    // TODO : return adjacency list (of global IDs)
 }
 
 int main(int argc, char** argv) {
@@ -74,8 +99,9 @@ int main(int argc, char** argv) {
 
     readFiles(processorId);
 
+    generateGraph(processorId);
+
     MPI_Finalize();
-    
 
     return 0;
 }
