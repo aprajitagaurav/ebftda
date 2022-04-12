@@ -23,13 +23,24 @@ void readFiles(int processorId) {
 
     string inputFileName = "./data/eth-tx-";
 
-    int filesPerProcessor = ceil(fileCount/(float) numberOfProcessors);
-    
+    int filesPerProcessor = fileCount/numberOfProcessors;
+    int rem = fileCount%numberOfProcessors;
+    int start, stop;
+
+    if(processorId < rem){
+        start = processorId*(filesPerProcessor + 1);
+        stop = start + filesPerProcessor;
+    }
+    else{
+        start = processorId*filesPerProcessor + rem;
+        stop = start + filesPerProcessor - 1;
+    }
+
     vector<Transaction> transactions;
     set<string> addresses;
 
-    for(int i = 0; i < filesPerProcessor; i++){
-        int index = processorId*filesPerProcessor + i + 1;
+    for(int i = start; i <= stop; i++){
+        int index = i + 1;
         
         if(index > fileCount)
             break;
