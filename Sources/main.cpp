@@ -12,6 +12,7 @@
 #include <math.h>
 #include <mpi.h>
 #include <unistd.h>
+#include <map>
 
 using namespace std;
 
@@ -19,7 +20,32 @@ int numberOfProcessors;
 int processorId;
 int fileCount = 5;
 
-void readFiles(int processorId) {
+struct graphData{
+    vector<Transaction> unsortedTransactions;
+    vector<string> unsortedAddresses;
+    set<string> unsortedAddressesSet;
+    vector<string> sortedAddresses;
+    vector<pair<string, string>> sortedTransactions;
+
+    map<string, int> addressGlobalIdMapping;
+    map<Transaction, pair<int, int>> transactionOldLocalIdMapping;
+};
+
+int getIndex(vector<string> v, string key)
+{
+    auto it = find(v.begin(), v.end(), key);
+
+    int index = -1;
+
+    if (it != v.end())
+    {
+        index = it - v.begin();
+    }
+
+    return index;
+}
+
+void readFiles(int processorId, graphData * g) {
     string inputFileName = "./data/eth-tx-";
 
     int filesPerProcessor = fileCount/numberOfProcessors;
@@ -34,9 +60,6 @@ void readFiles(int processorId) {
         start = processorId*filesPerProcessor + rem;
         stop = start + filesPerProcessor - 1;
     }
-
-    vector<Transaction> transactions;
-    set<string> addresses;
 
     for(int i = start; i <= stop; i++){
         int index = i + 1;
@@ -57,23 +80,48 @@ void readFiles(int processorId) {
 
             Transaction transaction(from, to);
 
-            transactions.push_back(transaction);
+            g->unsortedTransactions.push_back(transaction);
 
-            addresses.insert(transaction.getFrom());
-            addresses.insert(transaction.getTo());
+            g->unsortedAddressesSet.insert(transaction.getFrom());
+            g->unsortedAddressesSet.insert(transaction.getTo());
+
+            // TODO : To be replaced with sorting code
+            g->sortedAddresses.push_back(transaction.getFrom());
+            g->sortedAddresses.push_back(transaction.getTo());
         }
-
     }
 
-    // for (int i = 0; i < transactions.size(); i++){
-    //     std::cout << "Processor Id: " << processorId << " From: " << transactions.at(i).getFrom() << " To: " << transactions.at(i).getTo() << "\n";
-    // }
+//     for (int i = 0; i < g->unsortedTransactions.size(); i++){
+//         std::cout << "Processor Id: " << processorId << " From: " << g->unsortedTransactions.at(i).getFrom() << " To: " << g->unsortedTransactions.at(i).getTo() << "\n";
+//     }
 
-    // for (std::set<std::string>::iterator it=addresses.begin(); it!=addresses.end(); ++it)
-    //     std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
+     for (std::set<std::string>::iterator it=g->unsortedAddressesSet.begin(); it!=g->unsortedAddressesSet.end(); ++it){
+         g->unsortedAddresses.push_back(*it);
+//         std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
+     }
 }
 
-void generateGraph(int processorId){
+void removeDuplicates(graphData * g){
+    // TODO : Should be removed after parallel sort
+    sort(g->sortedAddresses.begin(), g->sortedAddresses.end());
+
+    g->sortedAddresses.erase(unique( g->sortedAddresses.begin(), g->sortedAddresses.end() ), g->sortedAddresses.end());
+}
+
+void globalIdAssignment(int processorId, graphData * g){
+    int numberOfCumulativeElements;
+    int numberOfLocalElements = g->sortedAddresses.size();
+
+    MPI_Scan(&numberOfLocalElements, &numberOfCumulativeElements, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+    int offset = numberOfCumulativeElements - numberOfLocalElements;
+
+    for (int i = 0; i < g->sortedAddresses.size(); i++){
+        g->addressGlobalIdMapping[g->sortedAddresses.at(i)] = i + offset;
+    }
+}
+
+void generateGraph(int processorId, graphData * g){
     // TODO : persist throughout processor's runtime...
     //  1. store unsorted transactions
     //  2. sorted transactions
@@ -84,11 +132,31 @@ void generateGraph(int processorId){
 
     // TODO : sort addresses using parallel sample sort []
 
-    // TODO : remove duplicates
+    // TODO : remove duplicates - DONE
+    removeDuplicates(g);
 
-    // TODO : global ID assignment using parallel scan
+//    for (int i = 0; i < g->sortedAddresses.size(); i++){
+//        std::cout << "Processor Id: " << processorId << " Address: " << g->sortedAddresses.at(i) << "\n";
+//    }
+
+    // TODO : global ID assignment using parallel scan - DONE
+    globalIdAssignment(processorId, g);
+
+//    map<string, int>::iterator itr;
+
+//    for (itr = g->addressGlobalIdMapping.begin(); itr != g->addressGlobalIdMapping.end(); ++itr) {
+//        cout << "Processor "<< processorId << " " << itr->first << " " << itr->second << endl;
+//    }
 
     // TODO : step 5 - read the old transactions and assign local IDs to them (from the old address set)
+     for (int i = 0; i < g->unsortedTransactions.size(); i++){
+         pair<int, int> val;
+         val.first = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getFrom());
+         val.second = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getTo());
+
+         // TODO : Fix map assignment
+//         g->transactionOldLocalIdMapping[g->unsortedTransactions.at(i)] = val;
+     }
 
     // TODO : local ID (old address ID) -> global ID
     //      : local first
@@ -108,9 +176,11 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &numberOfProcessors);
     MPI_Comm_rank(MPI_COMM_WORLD, &processorId);
 
-    readFiles(processorId);
+    graphData g;
 
-    generateGraph(processorId);
+    readFiles(processorId, &g);
+
+    generateGraph(processorId, &g);
 
     MPI_Finalize();
 
