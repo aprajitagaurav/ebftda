@@ -188,38 +188,26 @@ int main(int argc, char** argv) {
 //
 //    generateGraph(processorId, &g);
 
-    for (int i=0; i<numberOfProcessors; i++)
+    int token = processorId;
+    for (int i=0; i<numberOfProcessors-1; i++)
     {
-        int token;
-        if (processorId != i) {
-            int source = numberOfProcessors - 1;
-            if (processorId != 0){
-                source = processorId - 1;
-            }
-            MPI_Recv(&token, 1, MPI_INT, source, 0,
-                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        int receive;
 
-            printf("Process %d received token %d from process %d\n",
-                   processorId, token, source);
-        } else {
-            // Set the token's value if you are process 0
-            token = processorId;
+        int receiver = (processorId + 1) % numberOfProcessors;
+        int source = numberOfProcessors - 1;
+        if (processorId != 0){
+            source = processorId - 1;
         }
 
-        MPI_Send(&token, 1, MPI_INT, (processorId + 1) % numberOfProcessors,
+        MPI_Send(&token, 1, MPI_INT, receiver,
                  0, MPI_COMM_WORLD);
 
-        // Now process 0 can receive from the last process.
-        if (processorId == i) {
-            int source = numberOfProcessors - 1;
-            if (processorId != 0){
-                source = i-1;
-            }
-            MPI_Recv(&token, 1, MPI_INT, source, 0,
-                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            printf("Process %d received token %d from process %d\n",
-                   processorId, token, source);
-        }
+        MPI_Recv(&receive, 1, MPI_INT, source, 0,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        printf("Processor %d Sent %d to %d Received %d from %d\n", processorId, token,receiver, receive, source);
+
+        token = receive;
     }
 
     MPI_Finalize();
