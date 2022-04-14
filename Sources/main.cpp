@@ -174,6 +174,54 @@ void generateGraph(int processorId, graphData * g){
     // TODO : return adjacency list (of global IDs)
 }
 
+void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_nodes[]){
+    // TODO : init forest as a map, init stack Ap (set of addresses to be visited)
+
+    // TODO : make all blacklisted addresses (nodes) as roots
+    //  if a root node is present in the local address set,
+    //  make the root node point to itself,  depth (D[]) of this root node is 0
+    //  add all root nodes to stack Ap
+
+    // TODO : |A| : cumulative number of elements in the stack A across processors (use MPI Reduce)
+
+    // TODO : while loop (while |A| > 0), init Sp map[to] <parent, depth (ideally of the to node from blacklisted root)>
+    //          while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
+    //             if t is local - call visit node on t with Fp(t)
+    //             else
+    //               if t isnt in Sp map, update Sp[t] = <s, D[s] + 1>
+    //               if t is in Sp map, check if D[s] +1 < Sp[t].D, update as above with the lower value
+    //          C : cumulative number of S keys across all processors (use MPI all reduce)
+    //          if C > 0 :
+    //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]
+    //            receive all the t's being sent from the other processors...
+    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(s) - check on algo for specific parameters
+    //          update |A| once more [all reduce]
+    //       return forest
+    //
+}
+
+void visitNode(){
+    /**
+     * parameters : forest(f), source node(s), destination(t), distances d1 & d2
+     * TODO : if (f is null) or (f is not null and d1 < d2)
+     *          push t into Ap
+     *          Fp (forest) [t] = s
+     *          Dp[t] = d1
+     */
+}
+
+void visitNodeReceive(){
+    /**
+     * This is specific to the second call on Line 38 in the algo...
+     * parameters : forest(f), source node(s), destination(t), distances d1 & d2
+     * TODO : if d1 < d2
+     *          push t into Ap
+     *          Fp (forest) [t] = s
+     *          Dp[t] = d1
+     */
+}
+
+
 int main(int argc, char** argv) {
     // TODO : change to read from command line / MPI ...
     //        support multiple files per process
