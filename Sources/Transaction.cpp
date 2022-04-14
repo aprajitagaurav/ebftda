@@ -22,3 +22,23 @@ string Transaction::getTo()
 {
     return this->to;
 }
+
+void Transaction::setLocalFromId(int localFromId)
+{
+    this->localFromId = localFromId;
+}
+
+void Transaction::setLocalToId(int localToId)
+{
+    this->localToId = localToId;
+}
+
+int Transaction::getLocalFromId()
+{
+    return this->localFromId;
+}
+
+int Transaction::getLocalToId()
+{
+    return this->localToId;
+}

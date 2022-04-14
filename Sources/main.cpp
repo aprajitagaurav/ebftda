@@ -154,13 +154,19 @@ void generateGraph(int processorId, graphData * g){
          val.first = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getFrom());
          val.second = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getTo());
 
-         // TODO : Fix map assignment
-//         g->transactionOldLocalIdMapping[g->unsortedTransactions.at(i)] = val;
+         // TODO : Fix map assignment - DONE
+         g->unsortedTransactions.at(i).setLocalFromId(val.first);
+         g->unsortedTransactions.at(i).setLocalToId(val.second);
+
+//         cout << g->unsortedTransactions.at(i).getLocalFromId() << " " << g->unsortedTransactions.at(i).getLocalToId() << endl;
      }
 
     // TODO : local ID (old address ID) -> global ID
     //      : local first
     //      : send receive stuff
+
+    // send receive stuff
+    map<string, int> localAddressToGlobalIdMapBuffer;
 
     // TODO : sort transactions (by global IDs) (edges) - parallel sample sort,
     //  partition such that source addresses exist in the processor and all edges of source node exist together
@@ -176,11 +182,45 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &numberOfProcessors);
     MPI_Comm_rank(MPI_COMM_WORLD, &processorId);
 
-    graphData g;
+//    graphData g;
+//
+//    readFiles(processorId, &g);
+//
+//    generateGraph(processorId, &g);
 
-    readFiles(processorId, &g);
+    for (int i=0; i<numberOfProcessors; i++)
+    {
+        int token;
+        if (processorId != i) {
+            int source = numberOfProcessors - 1;
+            if (processorId != 0){
+                source = processorId - 1;
+            }
+            MPI_Recv(&token, 1, MPI_INT, source, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    generateGraph(processorId, &g);
+            printf("Process %d received token %d from process %d\n",
+                   processorId, token, source);
+        } else {
+            // Set the token's value if you are process 0
+            token = processorId;
+        }
+
+        MPI_Send(&token, 1, MPI_INT, (processorId + 1) % numberOfProcessors,
+                 0, MPI_COMM_WORLD);
+
+        // Now process 0 can receive from the last process.
+        if (processorId == i) {
+            int source = numberOfProcessors - 1;
+            if (processorId != 0){
+                source = i-1;
+            }
+            MPI_Recv(&token, 1, MPI_INT, source, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            printf("Process %d received token %d from process %d\n",
+                   processorId, token, source);
+        }
+    }
 
     MPI_Finalize();
 
