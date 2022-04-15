@@ -194,7 +194,7 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
     //          if C > 0 :
     //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]
     //            receive all the t's being sent from the other processors...
-    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(s) - check on algo for specific parameters
+    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(t) - ignore algo for specific parameters
     //          update |A| once more [all reduce]
     //       return forest
     //
@@ -204,17 +204,6 @@ void visitNode(){
     /**
      * parameters : forest(f), source node(s), destination(t), distances d1 & d2
      * TODO : if (f is null) or (f is not null and d1 < d2)
-     *          push t into Ap
-     *          Fp (forest) [t] = s
-     *          Dp[t] = d1
-     */
-}
-
-void visitNodeReceive(){
-    /**
-     * This is specific to the second call on Line 38 in the algo...
-     * parameters : forest(f), source node(s), destination(t), distances d1 & d2
-     * TODO : if d1 < d2
      *          push t into Ap
      *          Fp (forest) [t] = s
      *          Dp[t] = d1
