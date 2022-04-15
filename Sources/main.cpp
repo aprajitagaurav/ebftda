@@ -9,6 +9,7 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <stack>
 #include <math.h>
 #include <mpi.h>
 #include <unistd.h>
@@ -29,6 +30,7 @@ struct graphData{
 
     map<string, int> addressGlobalIdMapping;
     map<Transaction, pair<int, int>> transactionOldLocalIdMapping;
+    map<string, vector> graph;
 };
 
 int getIndex(vector<string> v, string key)
@@ -176,28 +178,71 @@ void generateGraph(int processorId, graphData * g){
 
 void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_nodes[]){
     // TODO : init forest as a map, init stack Ap (set of addresses to be visited)
+    map<string, string> Fp;
+    map<string, int> Dp;
+    stack<string> Ap;
+    map<string, int> Sp;
 
     // TODO : make all blacklisted addresses (nodes) as roots
     //  if a root node is present in the local address set,
     //  make the root node point to itself,  depth (D[]) of this root node is 0
     //  add all root nodes to stack Ap
+    for(auto node: blacklisted_nodes){
+        if(g->graph.count(node)){
+            Fp[node] = node;
+            Dp[node] = 0;
+            Ap.push(node);
+        }
+    }
 
     // TODO : |A| : cumulative number of elements in the stack A across processors (use MPI Reduce)
-
+    int numberOfAp = Ap.size();
+    int numberOfA;
+    MPI_Allreduce(&numberOfAp, &numberOfA, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     // TODO : while loop (while |A| > 0), init Sp map[to] <parent, depth (ideally of the to node from blacklisted root)>
-    //          while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
-    //             if t is local - call visit node on t with Fp(t)
-    //             else
-    //               if t isnt in Sp map, update Sp[t] = <s, D[s] + 1>
-    //               if t is in Sp map, check if D[s] +1 < Sp[t].D, update as above with the lower value
-    //          C : cumulative number of S keys across all processors (use MPI all reduce)
-    //          if C > 0 :
+    while(numberOfA > 0){
+        Sp.clear();
+    //  while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
+        while(!Ap.empty()){
+            string s = Ap.top()
+            Ap.pop();
+            for(auto t: g->graph[s]){
+    //          if t is local - call visit node on t with Fp(t)
+                if(g->graph.count(t)){
+                    if(!Fp.count(t) || (Fp.count(t) && (Dp[s]+1 < Dp[t]))){
+                        Fp[t] = s;
+                        Dp[t] = Dp[s] + 1;
+                        Ap.push(t);
+                    }
+                }
+    //          else
+    //              if t isnt in Sp map, update Sp[t] = <s, D[s] + 1>
+    //              if t is in Sp map, check if D[s] +1 < Sp[t].D, update as above with the lower value
+                else{
+                    if(!Sp.count(t) || (Sp.count(t) && (Dp[s]+1 < Sp[t].second))){
+                        pair<string, int> sourceDepthPair (s, Dp[s]+1);
+                        Sp[t] = sourceDepthPair;
+                    }
+                }
+            }
+        }
+    //  C : cumulative number of S keys across all processors (use MPI all reduce)
+        int numberOfSp = Sp.size()
+        int C;
+        MPI_Allreduce(&numberOfSp, &C, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    //  if C > 0 :
+        if(C > 0){
     //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]
     //            receive all the t's being sent from the other processors...
-    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(t) - ignore algo for specific parameters
-    //          update |A| once more [all reduce]
-    //       return forest
-    //
+
+    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(s) - check on algo for specific parameters
+        }
+    //  update |A| once more [all reduce]
+        int numberOfAp1 = Ap.size();
+        MPI_Allreduce(&numberOfAp1, &numberOfA, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    }
+    //return forest
+    return Fp;
 }
 
 void visitNode(){
