@@ -168,6 +168,71 @@ void generateGraph(int processorId, graphData * g){
     // TODO : return adjacency list (of global IDs)
 }
 
+void todo() {
+    // prereq : set with sorted, locally unique addresses
+    // TODO :
+    //   ----------------SORTING ROUND 1----------------
+    //   def fn peek :
+    //     return the smallest element of the set / stack...
+    //   def fn pop (global ID) :
+    //     create a map entry : address -> global id
+    //   def fn forceCreateTransactionEntry(globalId) // to be called by leader once per global ID
+    //     populate transaction map with given global ID and empty list as value....
+    //
+    /** Disclaimer - always check the lowest element (from peek) belongs to P0 (leader) handle differently..... */
+    // TODO : LEADER - P0 -
+    //    FIRST TIME : receive peek on all processors, after each pop
+    //    while (not p-1 stopComms ...)
+    //      3. find the ith index for lowest element / address
+    //      4. check if previous peek != current peek :
+    //                      increment global ID for this element and store that along with current element locally.
+    //                      set forceCreateTransactionEntry flag
+    //      5. send pop(globalId) to i where i is the processor id with lowest peek in current run..., wait for peek on popped process as long communication stop hasn't been received.
+    //
+    // TODO : FOLLOWER - p1 ... pn
+    //   FIRST TIME : call peek fn, send peek data
+    //   while set / stack not empty :
+    //      1. wait for pop instruction - call pop
+    //      2. peek if not fully empty
+    //   send stopComms flag..
+    //
+    // example struct::::
+    //  struct message{
+    //     bool peek ->
+    //     bool pop ->
+    //     int peekdata
+    //     int popdata
+    //     bool stopComms
+    //  }
+    // TODO :
+    //   ----------------SORTING ROUND 2----------------
+    //  pre-processing : Generate transactions global id -> global id mapping
+    // local sort by source,destination unique transactions, store each transaction as a struct...
+    // TODO : LEADER - P0 -
+    //  pop call to all followers
+    //  receive calls from all followers
+    //  while (not p-1 empty flags):
+    //    maintain received data, find minimum
+    //    send minimum struct along with address to (source%p)th processor (handle p0 case) - saveTransaction
+    //    pop call and wait for receive call on the minimum process id
+    //  send p-1 stop comm messages to all followers
+    //
+    // TODO FOLLOWER :
+    //  while (!stopcomms){
+    //      listen - receive..
+    //      if receive is pop : call pop and send popped entry along with the address for the global id, handle if empty - send empty flag..
+    //      if receive is save transaction : save transaction, along with global id <-> address mapping if not already present, build adjacency list
+    //      handle stop comms flag
+    //  }
+
+    // TODO saveTransaction :
+    //  get it ready to populate return structure
+    //  struct {
+    //     map adjList <int, vector> global id to list of dest addresses (global IDs)
+    //     map mapping <string, int> address <> global ID
+    //  }
+}
+
 int main(int argc, char** argv) {
     // TODO : change to read from command line / MPI ...
     //        support multiple files per process
