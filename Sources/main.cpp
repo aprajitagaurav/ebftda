@@ -20,6 +20,12 @@ int numberOfProcessors;
 int processorId;
 int fileCount = 5;
 
+struct addressGlobalIdMap
+{
+    unsigned int globalId;
+//    string address;
+};
+
 struct graphData{
     vector<Transaction> unsortedTransactions;
     vector<string> unsortedAddresses;
@@ -194,7 +200,7 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
     //          if C > 0 :
     //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]
     //            receive all the t's being sent from the other processors...
-    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(s) - check on algo for specific parameters
+    //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(t) - check on algo for specific parameters
     //          update |A| once more [all reduce]
     //       return forest
     //
@@ -210,18 +216,6 @@ void visitNode(){
      */
 }
 
-void visitNodeReceive(){
-    /**
-     * This is specific to the second call on Line 38 in the algo...
-     * parameters : forest(f), source node(s), destination(t), distances d1 & d2
-     * TODO : if d1 < d2
-     *          push t into Ap
-     *          Fp (forest) [t] = s
-     *          Dp[t] = d1
-     */
-}
-
-
 int main(int argc, char** argv) {
     // TODO : change to read from command line / MPI ...
     //        support multiple files per process
@@ -236,26 +230,66 @@ int main(int argc, char** argv) {
 //
 //    generateGraph(processorId, &g);
 
-    int token = processorId;
-    for (int i=0; i<numberOfProcessors-1; i++)
+//    int token = processorId;
+
+    MPI_Datatype addressGlobalIdMapt;
+
+    struct addressGlobalIdMap addmap1[10];
+
+    for (int i=0; i<10; i++)
     {
-        int receive;
+//        addmap1[i].address = "0xccfjfkdk"+ to_string(processorId)+":element:"+to_string(i);
+        addmap1[i].globalId = 10+processorId;
+    }
+
+    struct addressGlobalIdMap addmap1_receive[10];
+
+    for (int z=0; z<numberOfProcessors-1; z++)
+    {
+        int lengths[2] = { 1, 200};
+
+        MPI_Aint displacements[2];
+        struct addressGlobalIdMap dummy;
+        MPI_Aint base_address;
+
+        MPI_Get_address(&dummy, &base_address);
+        MPI_Get_address(&dummy.globalId, &displacements[0]);
+        MPI_Get_address(&dummy.address, &displacements[1]);
+
+        displacements[0] = MPI_Aint_diff(displacements[0], base_address);
+        displacements[1] = MPI_Aint_diff(displacements[1], base_address);
+
+        MPI_Datatype types[2] = { MPI_UNSIGNED, MPI_CHAR };
+        MPI_Type_create_struct(2, lengths, displacements, types, &addressGlobalIdMapt);
+        MPI_Type_commit(&addressGlobalIdMapt);
 
         int receiver = (processorId + 1) % numberOfProcessors;
         int source = numberOfProcessors - 1;
+
         if (processorId != 0){
             source = processorId - 1;
         }
 
-        MPI_Send(&token, 1, MPI_INT, receiver,
+//        printf("Processor %d iteration : %d %s %d\n", processorId, i, addmap1.address.c_str(), addmap1.globalId);
+
+        printf("HELLLOOOOOOO\n");
+
+        MPI_Send(addmap1, 10, addressGlobalIdMapt, receiver,
                  0, MPI_COMM_WORLD);
 
-        MPI_Recv(&receive, 1, MPI_INT, source, 0,
+        MPI_Recv(addmap1_receive, 10, addressGlobalIdMapt, source, 0,
                  MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        printf("Processor %d Sent %d to %d Received %d from %d\n", processorId, token,receiver, receive, source);
+        printf("Processor %d Sent to %d Received from %d :", processorId, receiver, source);
 
-        token = receive;
+        for (int i=0; i<10; i++)
+        {
+            printf(" %d", addmap1[i].globalId);
+//            addmap1[i].address = addmap1_receive[i].address;
+            addmap1[i].globalId = addmap1_receive[i].globalId;
+        }
+
+        printf("\n");
     }
 
     MPI_Finalize();
