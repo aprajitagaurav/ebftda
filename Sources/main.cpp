@@ -154,6 +154,8 @@ void generateGraph(int processorId, graphData * g){
          val.first = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getFrom());
          val.second = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getTo());
 
+         printf("%d %d\n", val.first, val.second);
+
          // TODO : Fix map assignment
 //         g->transactionOldLocalIdMapping[g->unsortedTransactions.at(i)] = val;
      }
@@ -168,7 +170,9 @@ void generateGraph(int processorId, graphData * g){
     // TODO : return adjacency list (of global IDs)
 }
 
-void todo() {
+
+
+void todo(graphData * g) {
     // prereq : set with sorted, locally unique addresses
     // TODO :
     //   ----------------SORTING ROUND 1----------------
@@ -245,7 +249,7 @@ int main(int argc, char** argv) {
 
     readFiles(processorId, &g);
 
-    generateGraph(processorId, &g);
+    todo(&g);
 
     MPI_Finalize();
 
