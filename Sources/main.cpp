@@ -31,20 +31,6 @@ struct graphData{
     map<Transaction, pair<int, int>> transactionOldLocalIdMapping;
 };
 
-int getIndex(vector<string> v, string key)
-{
-    auto it = find(v.begin(), v.end(), key);
-
-    int index = -1;
-
-    if (it != v.end())
-    {
-        index = it - v.begin();
-    }
-
-    return index;
-}
-
 void readFiles(int processorId, graphData * g) {
     string inputFileName = "./data/eth-tx-";
 
@@ -100,77 +86,6 @@ void readFiles(int processorId, graphData * g) {
 //         std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
      }
 }
-
-void removeDuplicates(graphData * g){
-    // TODO : Should be removed after parallel sort
-    sort(g->sortedAddresses.begin(), g->sortedAddresses.end());
-
-    g->sortedAddresses.erase(unique( g->sortedAddresses.begin(), g->sortedAddresses.end() ), g->sortedAddresses.end());
-}
-
-void globalIdAssignment(int processorId, graphData * g){
-    int numberOfCumulativeElements;
-    int numberOfLocalElements = g->sortedAddresses.size();
-
-    MPI_Scan(&numberOfLocalElements, &numberOfCumulativeElements, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
-    int offset = numberOfCumulativeElements - numberOfLocalElements;
-
-    for (int i = 0; i < g->sortedAddresses.size(); i++){
-        g->addressGlobalIdMapping[g->sortedAddresses.at(i)] = i + offset;
-    }
-}
-
-void generateGraph(int processorId, graphData * g){
-    // TODO : persist throughout processor's runtime...
-    //  1. store unsorted transactions
-    //  2. sorted transactions
-    //  3. unsorted nodes
-    //  4. sorted nodes
-    //  5. maintain a list of per processor range of global IDs based on received data
-    //  6. adjacency list being returned by generateGraph
-
-    // TODO : sort addresses using parallel sample sort []
-
-    // TODO : remove duplicates - DONE
-    removeDuplicates(g);
-
-//    for (int i = 0; i < g->sortedAddresses.size(); i++){
-//        std::cout << "Processor Id: " << processorId << " Address: " << g->sortedAddresses.at(i) << "\n";
-//    }
-
-    // TODO : global ID assignment using parallel scan - DONE
-    globalIdAssignment(processorId, g);
-
-//    map<string, int>::iterator itr;
-
-//    for (itr = g->addressGlobalIdMapping.begin(); itr != g->addressGlobalIdMapping.end(); ++itr) {
-//        cout << "Processor "<< processorId << " " << itr->first << " " << itr->second << endl;
-//    }
-
-    // TODO : step 5 - read the old transactions and assign local IDs to them (from the old address set)
-     for (int i = 0; i < g->unsortedTransactions.size(); i++){
-         pair<int, int> val;
-         val.first = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getFrom());
-         val.second = getIndex(g->unsortedAddresses, g->unsortedTransactions.at(i).getTo());
-
-         printf("%d %d\n", val.first, val.second);
-
-         // TODO : Fix map assignment
-//         g->transactionOldLocalIdMapping[g->unsortedTransactions.at(i)] = val;
-     }
-
-    // TODO : local ID (old address ID) -> global ID
-    //      : local first
-    //      : send receive stuff
-
-    // TODO : sort transactions (by global IDs) (edges) - parallel sample sort,
-    //  partition such that source addresses exist in the processor and all edges of source node exist together
-
-    // TODO : return adjacency list (of global IDs)
-}
-
-
 
 void todo(graphData * g) {
     // prereq : set with sorted, locally unique addresses
