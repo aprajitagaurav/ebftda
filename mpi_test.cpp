@@ -47,11 +47,9 @@ int main(int argc, char** argv) {
         send.flag = false;
         send.flag2 = false;
 
-        while(true){
             for (int i=1; i<numberOfProcessors; i++){
                 MPI_Send(&send, 1, test_type, i, 0, MPI_COMM_WORLD);
             }
-        }
     } else {
         test receive;
         int source = 0;
