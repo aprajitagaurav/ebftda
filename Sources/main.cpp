@@ -20,15 +20,26 @@ int numberOfProcessors;
 int processorId;
 int fileCount = 5;
 
+#define DEFAULT_NULL -1
+#define PEEK_MESSAGE 0
+#define POP_MESSAGE 1
+#define PEEK_DATA 2
+#define POP_DATA 3
+
 struct graphData{
-    vector<Transaction> unsortedTransactions;
-    vector<string> unsortedAddresses;
-    set<string> unsortedAddressesSet;
-    vector<string> sortedAddresses;
-    vector<pair<string, string>> sortedTransactions;
+    set<pair<string, string>> localTransactionsSet;
+    set<string> localAddressSet;
+
+    set<pair<int,int>> transactionGlobalIdSet;
 
     map<string, int> addressGlobalIdMapping;
-    map<Transaction, pair<int, int>> transactionOldLocalIdMapping;
+};
+
+struct metaData{
+    bool peek;
+    bool pop;
+    bool stopComms;
+    bool forceTransactionCreate;
 };
 
 void readFiles(int processorId, graphData * g) {
@@ -49,10 +60,10 @@ void readFiles(int processorId, graphData * g) {
 
     for(int i = start; i <= stop; i++){
         int index = i + 1;
-        
+
         if(index > fileCount)
             break;
-        
+
         string inputFile = inputFileName + to_string(index) + ".txt";
         Reader reader;
         reader.init(inputFile);
@@ -66,14 +77,10 @@ void readFiles(int processorId, graphData * g) {
 
             Transaction transaction(from, to);
 
-            g->unsortedTransactions.push_back(transaction);
+            g->localTransactionsSet.insert(pair<string, string>(transaction.getFrom(),transaction.getTo()));
 
-            g->unsortedAddressesSet.insert(transaction.getFrom());
-            g->unsortedAddressesSet.insert(transaction.getTo());
-
-            // TODO : To be replaced with sorting code
-            g->sortedAddresses.push_back(transaction.getFrom());
-            g->sortedAddresses.push_back(transaction.getTo());
+            g->localAddressSet.insert(transaction.getFrom());
+            g->localAddressSet.insert(transaction.getTo());
         }
     }
 
@@ -81,15 +88,77 @@ void readFiles(int processorId, graphData * g) {
 //         std::cout << "Processor Id: " << processorId << " From: " << g->unsortedTransactions.at(i).getFrom() << " To: " << g->unsortedTransactions.at(i).getTo() << "\n";
 //     }
 
-     for (std::set<std::string>::iterator it=g->unsortedAddressesSet.begin(); it!=g->unsortedAddressesSet.end(); ++it){
-         g->unsortedAddresses.push_back(*it);
+     for (std::set<std::string>::iterator it=g->localAddressSet.begin(); it!=g->localAddressSet.end(); ++it){
 //         std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
      }
 }
 
+string peek(graphData * g){
+    return g->localAddressSet.begin()->c_str();
+}
+
+void pop(int globalId, graphData * g){
+    set<string>::iterator it = g->localAddressSet.begin();
+
+    string address = it->c_str();
+
+    g->localAddressSet.erase(it);
+
+    g->addressGlobalIdMapping[address] = globalId;
+
+    printf("%d popped %s, assigned global id : %d\n", processorId, address.c_str(), globalId);
+}
+
+void forceCreateTransactionEntry(int globalId, graphData * g){
+    printf("%d force transaction created for global id : %d\n", processorId, globalId);
+
+    g->transactionGlobalIdSet.insert(pair<int, int>(globalId, DEFAULT_NULL));
+}
+
+void printAddressSet(graphData * g){
+    printf("%d Size: %lu\n",processorId, g->localAddressSet.size());
+
+    for (std::set<std::string>::iterator it=g->localAddressSet.begin(); it!=g->localAddressSet.end(); ++it){
+        std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
+    }
+}
+
+void printAddressGlobalIdMapping(graphData * g){
+    for (auto const& x : g->addressGlobalIdMapping)
+    {
+        printf("Processor %d, address : %s, global id : %d\n",processorId, x.first.c_str(), x.second);
+    }
+}
+
+void printTransactionSet(graphData * g){
+    printf("%d Size: %lu\n",processorId, g->localTransactionsSet.size());
+
+    for (std::set<pair<string, string>>::iterator it=g->localTransactionsSet.begin(); it!=g->localTransactionsSet.end(); ++it){
+        std::cout << "Processor Id: " << processorId << " Transaction: " << it->first << " " << it->second << "\n";
+    }
+}
+
+void printGlobalIdTransactionSet(graphData * g){
+    printf("%d Size: %lu\n",processorId, g->transactionGlobalIdSet.size());
+
+    for (std::set<pair<int, int>>::iterator it=g->transactionGlobalIdSet.begin(); it!=g->transactionGlobalIdSet.end(); ++it){
+        std::cout << "Processor Id: " << processorId << " Transaction: " << it->first << " " << it->second << "\n";
+    }
+}
+
+bool checkIfStopComms(bool arr[numberOfProcessors]){
+    for (int i=0; i<numberOfProcessors; i++){
+        if (!arr[i]){
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void todo(graphData * g) {
     // prereq : set with sorted, locally unique addresses
-    // TODO :
+    // TODO : DONE
     //   ----------------SORTING ROUND 1----------------
     //   def fn peek :
     //     return the smallest element of the set / stack...
@@ -98,6 +167,37 @@ void todo(graphData * g) {
     //   def fn forceCreateTransactionEntry(globalId) // to be called by leader once per global ID
     //     populate transaction map with given global ID and empty list as value....
     //
+
+//    string add =  peek(g).c_str();
+//    printf("%s\n", peek(g).c_str());
+//    pop(processorId, g);
+//    forceCreateTransactionEntry(processorId, g);
+//    printf("%s %d \n", add.c_str(), g->addressGlobalIdMapping[add]);
+//    printGlobalIdTransactionSet(&g);
+
+
+    int lengths[6] = { 1, 1, 1, 1};
+    MPI_Datatype metaDataType;
+
+    MPI_Aint displacements[4];
+    struct metaData dummy;
+    MPI_Aint base_address;
+
+    MPI_Get_address(&dummy, &base_address);
+    MPI_Get_address(&dummy.peek, &displacements[0]);
+    MPI_Get_address(&dummy.pop, &displacements[1]);
+    MPI_Get_address(&dummy.stopComms, &displacements[2]);
+    MPI_Get_address(&dummy.forceTransactionCreate, &displacements[3]);
+
+    displacements[0] = MPI_Aint_diff(displacements[0], base_address);
+    displacements[1] = MPI_Aint_diff(displacements[1], base_address);
+    displacements[2] = MPI_Aint_diff(displacements[2], base_address);
+    displacements[3] = MPI_Aint_diff(displacements[3], base_address);
+
+    MPI_Datatype types[4] = { MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL};
+    MPI_Type_create_struct(4, lengths, displacements, types, &metaDataType);
+    MPI_Type_commit(&metaDataType);
+
     /** Disclaimer - always check the lowest element (from peek) belongs to P0 (leader) handle differently..... */
     // TODO : LEADER - P0 -
     //    FIRST TIME : receive peek on all processors, after each pop
@@ -108,12 +208,146 @@ void todo(graphData * g) {
     //                      set forceCreateTransactionEntry flag
     //      5. send pop(globalId) to i where i is the processor id with lowest peek in current run..., wait for peek on popped process as long communication stop hasn't been received.
     //
+
+    if (processorId == 0){
+        printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
+
+        bool stopComms;
+        bool stopCommsArray[numberOfProcessors];
+
+        for (int x=0; x<numberOfProcessors; x++){
+            stopCommsArray[x] = false;
+        }
+
+        string currentAddress = "";
+        unsigned long long globalId = 0;
+
+        string add = peek(g);
+
+        metaData receiver[numberOfProcessors];
+        char** messageReceiver = new char*[numberOfProcessors];
+
+        for(int i = 0; i < numberOfProcessors; i++)
+        {
+            messageReceiver[i] = new char[200];
+        }
+
+        strcpy(messageReceiver[0], peek(g).c_str());
+
+        for (int i=1; i<numberOfProcessors; i++){
+            MPI_Recv(&receiver[i], 1, metaDataType, i, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(messageReceiver[i], 200, MPI_CHAR, i, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+            if (receiver[i].stopComms){
+                stopCommsArray[i] = true;
+            }
+        }
+
+        // TODO : handle edge case where p0 is out of processes
+        //  or other processes are not sending etc - DONE
+
+        string minString = messageReceiver[0];
+        int minIndex = 0;
+
+        stopComms = checkIfStopComms(stopCommsArray);
+
+        while (!stopComms){
+            minString = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+            minIndex = -1;
+
+            for (int i=0; i<numberOfProcessors; i++){
+                printf("HELLO %d %d\n", i, stopCommsArray[i]);
+                if (!stopCommsArray[i] && (messageReceiver[i] < minString)){
+                    minIndex = i;
+                    minString = messageReceiver[i];
+                }
+            }
+
+            metaData sendPop;
+
+            if (minString != currentAddress){
+                globalId += 1;
+                currentAddress = minString;
+                sendPop.forceTransactionCreate = true;
+            }
+
+            if (minIndex != 0){
+                MPI_Send(&sendPop, 1, metaDataType, minIndex, POP_MESSAGE, MPI_COMM_WORLD);
+                MPI_Send(&globalId, 1, MPI_UNSIGNED_LONG_LONG, minIndex, POP_DATA, MPI_COMM_WORLD);
+
+                MPI_Recv(&receiver[minIndex], 1, metaDataType, minIndex, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(messageReceiver[minIndex], 200, MPI_CHAR, minIndex, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+                if (receiver[minIndex].stopComms){
+                    stopCommsArray[minIndex] = true;
+                }
+
+            } else {
+                // handle within process 0
+                pop(globalId, g);
+                if (sendPop.forceTransactionCreate){
+                    forceCreateTransactionEntry(globalId, g);
+                }
+
+                if (g->localAddressSet.size() == 0){
+                    stopCommsArray[0] = true;
+                    printf("%d REACHED\n", processorId);
+                }
+
+                strcpy(messageReceiver[0], peek(g).c_str());
+            }
+
+            stopComms = checkIfStopComms(stopCommsArray);
+        }
+    }
     // TODO : FOLLOWER - p1 ... pn
     //   FIRST TIME : call peek fn, send peek data
     //   while set / stack not empty :
     //      1. wait for pop instruction - call pop
     //      2. peek if not fully empty
     //   send stopComms flag..
+    else{
+        printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
+
+        string add = peek(g);
+
+        metaData sendData;
+
+        if (g->localAddressSet.size() == 0){
+            sendData.stopComms = true;
+            printf("%d REACHED\n", processorId);
+        }
+
+        MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
+        MPI_Send(add.c_str(), add.size()+1, MPI_CHAR, 0, PEEK_DATA, MPI_COMM_WORLD);
+
+        while(g->localAddressSet.size() > 0){
+            metaData popReceive;
+            unsigned long long globalIdReceive;
+
+            MPI_Recv(&popReceive, 1, metaDataType, 0, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&globalIdReceive, 1, MPI_UNSIGNED_LONG_LONG, 0, POP_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+            pop(globalIdReceive, g);
+
+            if (popReceive.forceTransactionCreate){
+                forceCreateTransactionEntry(globalIdReceive, g);
+            }
+
+            add = peek(g);
+
+            metaData sendData;
+
+            if (g->localAddressSet.size() == 0){
+                sendData.stopComms = true;
+                printf("%d REACHED\n", processorId);
+            }
+
+            MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
+            MPI_Send(add.c_str(), add.size()+1, MPI_CHAR, 0, PEEK_DATA, MPI_COMM_WORLD);
+        }
+    }
+
     //
     // example struct::::
     //  struct message{
@@ -165,6 +399,10 @@ int main(int argc, char** argv) {
     readFiles(processorId, &g);
 
     todo(&g);
+
+    printGlobalIdTransactionSet(&g);
+
+    printAddressGlobalIdMapping(&g);
 
     MPI_Finalize();
 
