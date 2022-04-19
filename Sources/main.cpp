@@ -361,6 +361,12 @@ void todo(graphData * g) {
     //   ----------------SORTING ROUND 2----------------
     //  pre-processing : Generate transactions global id -> global id mapping
     // local sort by source,destination unique transactions, store each transaction as a struct...
+    // TODO : Handle DEFAULT_NULL : -1 case
+    for (set<pair<string, string>>::iterator itr = g->localTransactionsSet.begin(); itr != g->localTransactionsSet.end(); itr++)
+    {
+        g->transactionGlobalIdSet.insert(pair<int, int>(g->addressGlobalIdMapping[itr->first], g->addressGlobalIdMapping[itr->second]));
+    }
+
     // TODO : LEADER - P0 -
     //  pop call to all followers
     //  receive calls from all followers
