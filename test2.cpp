@@ -19,26 +19,28 @@ int main(int argc, char* argv[])
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numberOfProcessors);
     MPI_Comm_rank(MPI_COMM_WORLD, &processorId);
+    MPI_Request request;
 
-    int receive;
-    int send;
-
-    int arr[10];
-
-    for (int x=0; x<10; x++)
-    {
-        arr[x] = processorId+1;
-    }
-
-    if (processorId != 0 ){
-        printf("%d Receive\n", processorId);
-        MPI_Recv(&receive, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    if (processorId == 0){
+        int send = 10;
+        for (int i=1; i<numberOfProcessors; i++) {
+            send = 10 + i;
+            MPI_Isend(&send, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &request);
+            printf("--------------------------------------------------------SENT\n");
+        }
     } else {
-        send = 10;
-        for (int i=1; i<numberOfProcessors; i++)
-        {
-            printf("%d send\n", processorId);
-            MPI_Send(&send, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        int receive;
+
+        MPI_Irecv(&receive, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &request);
+
+        int flag = 0;
+        int ctr = 0;
+        while (!flag){
+            ctr += 1;
+            MPI_Test(&request ,&flag ,MPI_STATUS_IGNORE);
+        }
+        if (flag == 1){
+            printf("--------------------------------------------------------------------%d after %d\n", receive, ctr);
         }
     }
 
