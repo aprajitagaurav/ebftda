@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string>
 #include <mpi.h>
+#include <tuple>
+#include <list>
 
 using namespace  std;
 
@@ -53,79 +55,51 @@ int main(int argc, char* argv[])
     }
 
     bool stopComms[numberOfProcessors];
-
-    // These cannot be fixed length in real use case
-    int sendBuffer[10];
-    int receiver[10];
-
-    for (int i = 0; i<10; i++ ){
-        sendBuffer[i] = i + processorId;
-    }
-
-    int sendIterator = 0;
-    int receiveIterator = 0;
-    int processIterator = 0;
-
     bool run = true;
-    while (run){
+
+    list<tuple<int, int, int>> ls;
+
+    ls.push_back(tuple<int, int, int>(1,0,1));
+    ls.push_back(tuple<int, int, int>(2,1,2));
+    ls.push_back(tuple<int, int, int>(3,2,3));
+    ls.push_back(tuple<int, int, int>(4,3,0));
+    ls.push_back(tuple<int, int, int>(5,1,3));
+    ls.push_back(tuple<int, int, int>(6,2,0));
+    ls.push_back(tuple<int, int, int>(7,3,2));
+    ls.push_back(tuple<int, int, int>(8,2,1));
+    ls.push_back(tuple<int, int, int>(9,0,3));
+    ls.push_back(tuple<int, int, int>(10,2,0));
+    ls.push_back(tuple<int, int, int>(11,1,3));
+
+    list<tuple<int, int, int>>::iterator it;
+    it = ls.begin();
+    bool sendInProgress[numberOfProcessors] = false;
+    int sendData[numberOfProcessors];
+
+    while (it != ls.end()){
         // send
-        if (sendIterator < 10){
-            metaData sender;
-            sender.number = sendBuffer[sendIterator];
-            if (sendIterator == 10){
-                sender.stopComms = true;
+        int number = get<0>(*it);
+        int from = get<1>(*it);
+        int to = get<2>(*it);
+
+        if (processorId == from){
+            if (!sendInProgress[to]){
+                metaData send;
+                send.number = number;
+                MPI_Isend(&send, 1, MPI_INT, to, 0, MPI_COMM_WORLD, &sendRequest[to]);
+            } else {
+                // check on send status
+                MPI_Test(&request ,&flag ,MPI_STATUS_IGNORE);
             }
-            MPI_Send(&sender, 1, metaDataType, 1, 0, MPI_COMM_WORLD, &sendRequest[1]);
-            MPI_Test(&request[i], &flag, MPI_STATUS_IGNORE);
         } else {
-            for (int i=0; i<numberOfProcessors; i++){
-                if (i != processorId){
-                    metaData sender;
-                    sender.stopComms = true;
-                    MPI_Send(&sender, 1, metaDataType, 1, 0, MPI_COMM_WORLD);
-                }
-            }
+            it++;
+            sendInProgress = false
         }
-
         // receive
-        for (int i=0; i<numberOfProcessors; i++){
-            if (i != processorId && !stopComms[i]){
-                int flag = 0;
-                MPI_Test(&request[i], &flag, MPI_STATUS_IGNORE);
 
-                if (flag == 1){
-                    // received
-                    receiver[receiveIterator] = receiveBuffer[i].number;
-                    receiveIterator += 1;
+        // process
 
-                    if (!receiveBuffer[i].stopComms){
-                        MPI_Irecv(&receiveBuffer[i], 1, metaDataType, 0, 0, MPI_COMM_WORLD, &request[i]);
-                    } else {
-                        stopComms[i] = true;
-                    }
-                }
-            }
-        }
-
-        // process received elements
-        if (receiveIterator > processIterator){
-            while (processIterator < receiveIterator){
-                printf("Processor ID : %d received element %d\n", processorId, receiver[processIterator]);
-                processIterator += 1;
-            }
-        }
-
-        // check if all stop comms
-        for (int i=0; i<numberOfProcessors; i++){
-
-            // TODO : also check for length of send array and
-            //        check if any more elements to be processed
-            run = false;
-
-            if (i != processorId && !stopComms[i]){
-                run = true;
-            }
-        }
+        // check for stop comms
     }
 
     MPI_Finalize();
