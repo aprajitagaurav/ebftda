@@ -21,6 +21,11 @@ int numberOfProcessors;
 int processorId;
 int fileCount = 5;
 
+struct graph{
+
+    map<unsigned long long, vector<unsigned long long>> adjList;
+    map<string, unsigned long long> addressGlobalIdMapping;
+};
 struct graphData{
     vector<Transaction> unsortedTransactions;
     vector<string> unsortedAddresses;
@@ -30,7 +35,7 @@ struct graphData{
 
     map<string, int> addressGlobalIdMapping;
     map<Transaction, pair<int, int>> transactionOldLocalIdMapping;
-    map<string, vector> graph;
+    struct graph returnGraph;
 };
 
 int getIndex(vector<string> v, string key)
@@ -178,37 +183,38 @@ void generateGraph(int processorId, graphData * g){
 
 void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_nodes[]){
     // TODO : init forest as a map, init stack Ap (set of addresses to be visited)
-    map<string, string> Fp;
-    map<string, int> Dp;
-    stack<string> Ap;
-    map<string, int> Sp;
+    map<unsigned long long, unsigned long long> Fp;
+    map<unsigned long long, unsigned long long> Dp;
+    stack<unsigned long long> Ap;
+    map<unsigned long long, pair<unsigned long long, unsigned long long>> Sp;
 
     // TODO : make all blacklisted addresses (nodes) as roots
     //  if a root node is present in the local address set,
     //  make the root node point to itself,  depth (D[]) of this root node is 0
     //  add all root nodes to stack Ap
     for(auto node: blacklisted_nodes){
-        if(g->graph.count(node)){
-            Fp[node] = node;
-            Dp[node] = 0;
-            Ap.push(node);
+        if(g->returnGraph.addressGlobalIdMapping.count(node) ){
+            unsigned long long nodeId = g->returnGraph.addressGlobalIdMapping[node];
+            Fp[nodeId] = nodeId;
+            Dp[nodeId] = 0;
+            Ap.push(nodeId);
         }
     }
 
     // TODO : |A| : cumulative number of elements in the stack A across processors (use MPI Reduce)
-    int numberOfAp = Ap.size();
-    int numberOfA;
-    MPI_Allreduce(&numberOfAp, &numberOfA, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    unsigned long long numberOfAp = Ap.size();
+    unsigned long long numberOfA;
+    MPI_Allreduce(&numberOfAp, &numberOfA, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
     // TODO : while loop (while |A| > 0), init Sp map[to] <parent, depth (ideally of the to node from blacklisted root)>
     while(numberOfA > 0){
         Sp.clear();
     //  while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
         while(!Ap.empty()){
-            string s = Ap.top()
+            unsigned long long s = Ap.top();
             Ap.pop();
-            for(auto t: g->graph[s]){
+            for(auto t: g->returnGraph.adjList[s]){
     //          if t is local - call visit node on t with Fp(t)
-                if(g->graph.count(t)){
+                if(g->returnGraph.adjList.count(t)){
                     if(!Fp.count(t) || (Fp.count(t) && (Dp[s]+1 < Dp[t]))){
                         Fp[t] = s;
                         Dp[t] = Dp[s] + 1;
@@ -220,21 +226,110 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
     //              if t is in Sp map, check if D[s] +1 < Sp[t].D, update as above with the lower value
                 else{
                     if(!Sp.count(t) || (Sp.count(t) && (Dp[s]+1 < Sp[t].second))){
-                        pair<string, int> sourceDepthPair (s, Dp[s]+1);
+                        
+                        pair<unsigned long long, unsigned long long> sourceDepthPair;
+                        sourceDepthPair = make_pair(s, Dp[s]+1);
                         Sp[t] = sourceDepthPair;
                     }
                 }
             }
         }
     //  C : cumulative number of S keys across all processors (use MPI all reduce)
-        int numberOfSp = Sp.size()
-        int C;
+        unsigned long long numberOfSp = Sp.size();
+        unsigned long long C;
         MPI_Allreduce(&numberOfSp, &C, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     //  if C > 0 :
         if(C > 0){
-    //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]
+    //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]    
     //            receive all the t's being sent from the other processors...
     //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(s) - check on algo for specific parameters
+            map<int, vector<unsigned long long [4]>> sendList;
+            
+            for(int i = 0; i < numberOfProcessors; i++){
+                sendList[i];
+            }
+            for(auto &SpEntry: Sp){
+                unsigned long long entry[4];
+                entry[0] = 1;
+                entry[1] = SpEntry.first;
+                entry[2] = SpEntry.second.first;
+                entry[3] = SpEntry.second.second;
+                int destinationProcessor = (int) (SpEntry.first % (unsigned long long) numberOfProcessors);
+                sendList[destinationProcessor] = sendList[destinationProcessor].push_back(entry);
+            }
+            for(int i = 0; i < numberOfProcessors; i++){
+                unsigned long long entry[4];
+                entry[0] = 0;
+                entry[1] = 0;
+                entry[2] = 0;
+                entry[3] = 0;
+                sendList[i] = sendList[i].push_back(entry);
+            }
+            
+            MPI_REQUEST rec_request[numberOfProcessors];
+            MPI_REQUEST send_request[numberOfProcessors];
+            unsigned long long receive[numberOfProcessors][4];
+            bool stopComm[numberOfProcessors];
+            bool allReceived = false;
+            bool allSent = false;
+
+            for(int i = 0; i<numberOfProcessors; i++){
+                stopComm[i] = false;
+
+                MPI_ISend(&sendList[i].front(), 4. MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, send_request[i]);
+                sendList[i] = sendList[i].erase(sendList[i].begin());
+                
+                MPI_IRecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, rec_request[i]);   
+            }
+
+
+            while(!allSent || !allReceived){
+                
+                if(!allSent){
+                    allSent = true;
+                    for(int i = 0; i<numberOfProcessors; i++){
+                        int flag_sent = 0;
+                        MPI_Test(send_request[i], flag_sent, MPI_STATUS_IGNORE);
+                        if(flag_sent == 1){
+                            MPI_Request_free(send_request[i]);
+                            if(!sendList[i].empty()){
+                                MPI_ISend(&sendList[i].front(), 4. MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, send_request[i]);
+                                sendList[i] = sendList[i].erase(sendList[i].begin());
+                                allSent = false;
+                            }
+                        }
+                    }
+                }
+                
+                if(!allReceived){
+                    allReceived = true;
+                    for(int i = 0; i<numberOfProcessors; i++){
+                        int flag_rec = 0;
+                        if(!stopComm[i]){
+                            MPI_Test(rec_request[i], &flag_rec, MPI_STATUS_IGNORE);
+                            if(flag_rec == 1){
+                                MPI_Request_free(rec_request[i]);
+                                if(receive[i][0] != 0){
+                                    unsigned long long t = receive[i][1];
+                                    unsigned long long s = receive[i][2];
+                                    unsigned long long d = receive[i][3];
+                                    if(!Fp.count(t) || (Fp.count(t) && (d < Dp[t]))){
+                                        Fp[t] = s;
+                                        Dp[t] = d;
+                                        Ap.push(t);
+                                    }
+            
+                                    MPI_IRecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, rec_request[i]);
+                                    allReceived = false;
+                                }
+                                else
+                                    stopComm[i] = true;
+                            }
+                        }   
+                    }
+                }                 
+            }
+
         }
     //  update |A| once more [all reduce]
         int numberOfAp1 = Ap.size();
