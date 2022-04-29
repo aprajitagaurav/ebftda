@@ -9,6 +9,7 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <array>
 #include <stack>
 #include <math.h>
 #include <mpi.h>
@@ -19,11 +20,11 @@ using namespace std;
 
 int numberOfProcessors;
 int processorId;
-int fileCount = 5;
+int fileCount = 2;
 
 struct graph{
 
-    map<unsigned long long, vector<unsigned long long>> adjList;
+    map<unsigned long long, vector<unsigned long long> > adjList;
     map<string, unsigned long long> addressGlobalIdMapping;
 };
 struct graphData{
@@ -31,10 +32,10 @@ struct graphData{
     vector<string> unsortedAddresses;
     set<string> unsortedAddressesSet;
     vector<string> sortedAddresses;
-    vector<pair<string, string>> sortedTransactions;
+    vector<pair<string, string> > sortedTransactions;
 
     map<string, int> addressGlobalIdMapping;
-    map<Transaction, pair<int, int>> transactionOldLocalIdMapping;
+    map<Transaction, pair<int, int> > transactionOldLocalIdMapping;
     struct graph returnGraph;
 };
 
@@ -104,7 +105,7 @@ void readFiles(int processorId, graphData * g) {
 
      for (std::set<std::string>::iterator it=g->unsortedAddressesSet.begin(); it!=g->unsortedAddressesSet.end(); ++it){
          g->unsortedAddresses.push_back(*it);
-//         std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
+         std::cout << "Processor Id: " << processorId << " Address: " << *it << "\n";
      }
 }
 
@@ -181,24 +182,36 @@ void generateGraph(int processorId, graphData * g){
     // TODO : return adjacency list (of global IDs)
 }
 
-void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_nodes[]){
+void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklisted_nodes){
     // TODO : init forest as a map, init stack Ap (set of addresses to be visited)
     map<unsigned long long, unsigned long long> Fp;
     map<unsigned long long, unsigned long long> Dp;
     stack<unsigned long long> Ap;
-    map<unsigned long long, pair<unsigned long long, unsigned long long>> Sp;
+    map<unsigned long long, pair<unsigned long long, unsigned long long> > Sp;
+    printf("Processor id: %d\n", processorId);
+    for(auto &entry: g->adjList){
+        printf("%llu: ", entry.first);
+        for(auto &value: entry.second){
+            printf("%llu ", value);
+        }
+        printf("\n");
+    }
 
     // TODO : make all blacklisted addresses (nodes) as roots
     //  if a root node is present in the local address set,
     //  make the root node point to itself,  depth (D[]) of this root node is 0
     //  add all root nodes to stack Ap
     for(auto node: blacklisted_nodes){
-        if(g->returnGraph.addressGlobalIdMapping.count(node) ){
-            unsigned long long nodeId = g->returnGraph.addressGlobalIdMapping[node];
+        if(g->addressGlobalIdMapping.count(node) ){
+            unsigned long long nodeId = g->addressGlobalIdMapping[node];
             Fp[nodeId] = nodeId;
             Dp[nodeId] = 0;
             Ap.push(nodeId);
         }
+    }
+
+    for(int i = 0; i<Ap.size(); i++){
+        printf("Processor Id: %d ----> Ap element\n", processorId);
     }
 
     // TODO : |A| : cumulative number of elements in the stack A across processors (use MPI Reduce)
@@ -206,15 +219,18 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
     unsigned long long numberOfA;
     MPI_Allreduce(&numberOfAp, &numberOfA, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
     // TODO : while loop (while |A| > 0), init Sp map[to] <parent, depth (ideally of the to node from blacklisted root)>
+    
     while(numberOfA > 0){
         Sp.clear();
     //  while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
         while(!Ap.empty()){
             unsigned long long s = Ap.top();
+            printf("s: %llu\n", s);
             Ap.pop();
-            for(auto t: g->returnGraph.adjList[s]){
+            for(auto t: g->adjList[s]){
     //          if t is local - call visit node on t with Fp(t)
-                if(g->returnGraph.adjList.count(t)){
+                printf("t: %llu\n", t);
+                if(g->adjList.count(t)){
                     if(!Fp.count(t) || (Fp.count(t) && (Dp[s]+1 < Dp[t]))){
                         Fp[t] = s;
                         Dp[t] = Dp[s] + 1;
@@ -232,70 +248,124 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
                         Sp[t] = sourceDepthPair;
                     }
                 }
+                for(auto &FpEntry: Fp){
+                    printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
+                }
+
+                for(auto &DpEntry: Dp){
+                    printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
+                }
+
+                for(auto &SpEntry: Sp){
+                    printf("Processor Id: %d ----> Sp key: %llu,  src: %llu, depth: %llu\n", processorId, SpEntry.first, SpEntry.second.first, SpEntry.second.second);
+                }
             }
         }
     //  C : cumulative number of S keys across all processors (use MPI all reduce)
         unsigned long long numberOfSp = Sp.size();
         unsigned long long C;
         MPI_Allreduce(&numberOfSp, &C, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        printf("C: %llu\n", C);
     //  if C > 0 :
         if(C > 0){
     //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]    
     //            receive all the t's being sent from the other processors...
     //            iterate over the received t's, visit node on t's pair <s,d>,  call visit node on t with Fp(s) - check on algo for specific parameters
-            map<int, vector<unsigned long long [4]>> sendList;
+            map<int, vector<array<unsigned long long, 4> > > sendList;
             
             for(int i = 0; i < numberOfProcessors; i++){
                 sendList[i];
             }
+            
             for(auto &SpEntry: Sp){
-                unsigned long long entry[4];
-                entry[0] = 1;
-                entry[1] = SpEntry.first;
-                entry[2] = SpEntry.second.first;
-                entry[3] = SpEntry.second.second;
-                int destinationProcessor = (int) (SpEntry.first % (unsigned long long) numberOfProcessors);
-                sendList[destinationProcessor] = sendList[destinationProcessor].push_back(entry);
+                printf("Processor Id: %d ----> Sp key: %llu,  src: %llu, depth: %llu\n", processorId, SpEntry.first, SpEntry.second.first, SpEntry.second.second);
             }
+
+            for(auto &SpEntry: Sp){
+                array<unsigned long long, 4> entry;
+                entry = {1, SpEntry.first, SpEntry.second.first, SpEntry.second.second};
+                int destinationProcessor = (int) (SpEntry.first % (unsigned long long) numberOfProcessors);
+                printf("Processor Id: %d ----> Destination processor: %d\n", processorId, destinationProcessor);
+                sendList[destinationProcessor].push_back(entry);
+                for(auto &arr: sendList[destinationProcessor]){
+                    printf("Processor Id: %d ----> [ %llu, %llu, %llu, %llu ] ", processorId, arr[0], arr[1], arr[2], arr[3]);
+                }
+                printf("\n");
+                printf("Processor Id: %d ----> Sp size: %d\n", processorId, Sp.size());
+                for(auto &SpEntry: Sp){
+                    printf("Processor Id: %d ----> Sp key: %llu,  src: %llu, depth: %llu\n", processorId, SpEntry.first, SpEntry.second.first, SpEntry.second.second);
+                }
+            }
+
+            Sp.clear();
+
             for(int i = 0; i < numberOfProcessors; i++){
-                unsigned long long entry[4];
-                entry[0] = 0;
-                entry[1] = 0;
-                entry[2] = 0;
-                entry[3] = 0;
-                sendList[i] = sendList[i].push_back(entry);
+                if(i != processorId){
+                    array<unsigned long long, 4> entry;
+                    entry = {0, 0 ,0 ,0};
+                    sendList[i].push_back(entry);
+                } 
+            }
+
+            for(auto &SendListEntry: sendList){
+                printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
+                for(auto &message: SendListEntry.second){
+                    printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
+                }
+                printf("\n");
             }
             
-            MPI_REQUEST rec_request[numberOfProcessors];
-            MPI_REQUEST send_request[numberOfProcessors];
+            MPI_Request rec_request[numberOfProcessors];
+            MPI_Request send_request[numberOfProcessors];
             unsigned long long receive[numberOfProcessors][4];
             bool stopComm[numberOfProcessors];
             bool allReceived = false;
             bool allSent = false;
 
             for(int i = 0; i<numberOfProcessors; i++){
-                stopComm[i] = false;
-
-                MPI_ISend(&sendList[i].front(), 4. MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, send_request[i]);
-                sendList[i] = sendList[i].erase(sendList[i].begin());
                 
-                MPI_IRecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, rec_request[i]);   
+                if(i != processorId)
+                    stopComm[i] = false;
+                else
+                    stopComm[i] = true;
+                
+                printf("Processor Id: %d --------> hello\n", processorId);
+                
+                if(i != processorId){
+                    MPI_Isend(&sendList[i].front(), 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, &send_request[i]);
+                    sendList[i].erase(sendList[i].begin());
+                
+                    MPI_Irecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, &rec_request[i]);
+                }
             }
 
+            for(auto &SendListEntry: sendList){
+                printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
+                for(auto &message: SendListEntry.second){
+                    printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
+                }
+                printf("\n");
+            }
 
             while(!allSent || !allReceived){
                 
                 if(!allSent){
                     allSent = true;
                     for(int i = 0; i<numberOfProcessors; i++){
-                        int flag_sent = 0;
-                        MPI_Test(send_request[i], flag_sent, MPI_STATUS_IGNORE);
-                        if(flag_sent == 1){
-                            MPI_Request_free(send_request[i]);
-                            if(!sendList[i].empty()){
-                                MPI_ISend(&sendList[i].front(), 4. MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, send_request[i]);
-                                sendList[i] = sendList[i].erase(sendList[i].begin());
-                                allSent = false;
+                        if(i != processorId){
+                            int flag_sent = 0;
+                            MPI_Test(&send_request[i], &flag_sent, MPI_STATUS_IGNORE);
+                            printf("Processor Id: %d -----------> to Processor: %d flag_sent: %d\n", processorId, i, flag_sent);
+                            if(flag_sent == 1){
+                                printf("Processor Id: %d -----------> Right before req free\n", processorId);
+                                //MPI_Request_free(&send_request[i]);
+                                send_request[i] = MPI_REQUEST_NULL;
+                                printf("Processor Id: %d -----------> I crossed this shit\n", processorId);
+                                if(!sendList[i].empty()){
+                                    MPI_Isend(&sendList[i].front(), 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, &send_request[i]);
+                                    sendList[i].erase(sendList[i].begin());
+                                    allSent = false;
+                                }
                             }
                         }
                     }
@@ -306,9 +376,10 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
                     for(int i = 0; i<numberOfProcessors; i++){
                         int flag_rec = 0;
                         if(!stopComm[i]){
-                            MPI_Test(rec_request[i], &flag_rec, MPI_STATUS_IGNORE);
+                            MPI_Test(&rec_request[i], &flag_rec, MPI_STATUS_IGNORE);
                             if(flag_rec == 1){
-                                MPI_Request_free(rec_request[i]);
+                                printf("Processor Id: %d -----------> I'm here motherfuckas!!!!\n", processorId);
+                                rec_request[i] = MPI_REQUEST_NULL;
                                 if(receive[i][0] != 0){
                                     unsigned long long t = receive[i][1];
                                     unsigned long long s = receive[i][2];
@@ -319,7 +390,7 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
                                         Ap.push(t);
                                     }
             
-                                    MPI_IRecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, rec_request[i]);
+                                    MPI_Irecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, &rec_request[i]);
                                     allReceived = false;
                                 }
                                 else
@@ -335,8 +406,16 @@ void blacklisted_node_forest(int processorId, graphData * g, string blacklisted_
         int numberOfAp1 = Ap.size();
         MPI_Allreduce(&numberOfAp1, &numberOfA, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     }
+
+    for(auto &FpEntry: Fp){
+        printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
+    }
+
+    for(auto &DpEntry: Dp){
+        printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
+    }
     //return forest
-    return Fp;
+    //return Fp;
 }
 
 void visitNode(){
@@ -364,37 +443,62 @@ void visitNodeReceive(){
 int main(int argc, char** argv) {
     // TODO : change to read from command line / MPI ...
     //        support multiple files per process
-
+    
     MPI_Init(&argc,&argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numberOfProcessors);
     MPI_Comm_rank(MPI_COMM_WORLD, &processorId);
-
+    
 //    graphData g;
-//
+
 //    readFiles(processorId, &g);
 //
 //    generateGraph(processorId, &g);
+    
+    struct graph g0;
+    struct graph g1;
+    
+    map<unsigned long long, vector<unsigned long long> > adjList0;
+    adjList0[0];
+    adjList0[0].push_back(1);
+    adjList0[0].push_back(2);
 
-    int token = processorId;
-    for (int i=0; i<numberOfProcessors-1; i++)
-    {
-        int receive;
+    adjList0[2];
+    
+    adjList0[4];
+    adjList0[4].push_back(0);
+    
+    map<string, unsigned long long> addressGlobalIdMapping0;
+    addressGlobalIdMapping0["0"] = 0;
+    addressGlobalIdMapping0["2"] = 2;
+    addressGlobalIdMapping0["4"] = 4;
 
-        int receiver = (processorId + 1) % numberOfProcessors;
-        int source = numberOfProcessors - 1;
-        if (processorId != 0){
-            source = processorId - 1;
-        }
+    map<unsigned long long, vector<unsigned long long> > adjList1;
+    adjList1[1];
+    adjList1[1].push_back(2);
+    adjList1[1].push_back(3);
+    adjList1[1].push_back(4);
 
-        MPI_Send(&token, 1, MPI_INT, receiver,
-                 0, MPI_COMM_WORLD);
+    adjList1[3];
 
-        MPI_Recv(&receive, 1, MPI_INT, source, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    map<string, unsigned long long> addressGlobalIdMapping1;
+    addressGlobalIdMapping1["1"] = 1;
+    addressGlobalIdMapping1["3"] = 3;
 
-        printf("Processor %d Sent %d to %d Received %d from %d\n", processorId, token,receiver, receive, source);
+    g0.adjList = adjList0;
+    g0.addressGlobalIdMapping = addressGlobalIdMapping0;
 
-        token = receive;
+    g1.adjList = adjList1;
+    g1.addressGlobalIdMapping = addressGlobalIdMapping1; 
+
+    vector<string> blacklistedNodes;
+    blacklistedNodes.push_back("4");
+    blacklistedNodes.push_back("1");
+
+    if(processorId == 0){
+        blacklisted_node_forest(processorId, &g0, blacklistedNodes);
+    }
+    else if(processorId == 1){
+        blacklisted_node_forest(processorId, &g1, blacklistedNodes);
     }
 
     MPI_Finalize();
