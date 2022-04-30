@@ -34,14 +34,14 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
     map<unsigned long long, unsigned long long> Dp;
     stack<unsigned long long> Ap;
     map<unsigned long long, pair<unsigned long long, unsigned long long> > Sp;
-    printf("Processor id: %d\n", processorId);
-    for(auto &entry: g->adjList){
-        printf("%llu: ", entry.first);
-        for(auto &value: entry.second){
-            printf("%llu ", value);
-        }
-        printf("\n");
-    }
+    // printf("Processor id: %d\n", processorId);
+    // for(auto &entry: g->adjList){
+    //     printf("%llu: ", entry.first);
+    //     for(auto &value: entry.second){
+    //         printf("%llu ", value);
+    //     }
+    //     printf("\n");
+    // }
 
     // TODO : make all blacklisted addresses (nodes) as roots
     //  if a root node is present in the local address set,
@@ -56,9 +56,9 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
         }
     }
 
-    for(int i = 0; i<Ap.size(); i++){
-        printf("Processor Id: %d ----> Ap element\n", processorId);
-    }
+    // for(int i = 0; i<Ap.size(); i++){
+    //     printf("Processor Id: %d ----> Ap element\n", processorId);
+    // }
 
     // TODO : |A| : cumulative number of elements in the stack A across processors (use MPI Reduce)
     unsigned long long numberOfAp = Ap.size();
@@ -71,11 +71,11 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
     //  while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
         while(!Ap.empty()){
             unsigned long long s = Ap.top();
-            printf("Processor Id: %d --------> s: %llu\n", processorId, s);
+            // printf("Processor Id: %d --------> s: %llu\n", processorId, s);
             Ap.pop();
             for(auto t: g->adjList[s]){
     //          if t is local - call visit node on t with Fp(t)
-                printf("Processor Id: %d --------> t: %llu\n", processorId, t);
+                // printf("Processor Id: %d --------> t: %llu\n", processorId, t);
                 if(g->adjList.count(t)){
                     if(!Fp.count(t) || (Fp.count(t) && (Dp[s]+1 < Dp[t]))){
                         Fp[t] = s;
@@ -94,26 +94,26 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                         Sp[t] = sourceDepthPair;
                     }
                 }
-                for(auto &FpEntry: Fp){
-                    printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
-                }
+                // for(auto &FpEntry: Fp){
+                //     printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
+                // }
 
-                for(auto &DpEntry: Dp){
-                    printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
-                }
+                // for(auto &DpEntry: Dp){
+                //     printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
+                // }
 
-                for(auto &SpEntry: Sp){
-                    printf("Processor Id: %d ----> Sp key: %llu,  src: %llu, depth: %llu\n", processorId, SpEntry.first, SpEntry.second.first, SpEntry.second.second);
-                }
+                // for(auto &SpEntry: Sp){
+                //     printf("Processor Id: %d ----> Sp key: %llu,  src: %llu, depth: %llu\n", processorId, SpEntry.first, SpEntry.second.first, SpEntry.second.second);
+                // }
             }
-            printf("ProcessorId: %d, Ap Size: %d\n", processorId, Ap.size());
+            // printf("ProcessorId: %d, Ap Size: %d\n", processorId, Ap.size());
         }
-        printf("ProcessorId: %d ooolalalalallala\n", processorId);
+        // printf("ProcessorId: %d ooolalalalallala\n", processorId);
     //  C : cumulative number of S keys across all processors (use MPI all reduce)
         unsigned long long numberOfSp = Sp.size();
         unsigned long long C;
         MPI_Allreduce(&numberOfSp, &C, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-        printf("Processor Id: %d, C: %llu\n", processorId, C);
+        // printf("Processor Id: %d, C: %llu\n", processorId, C);
     //  if C > 0 :
         if(C > 0){
     //            iterate over all ts in Sp and send it to the processor which has t in their local address list. [MPI SEND RECEIVE]    
@@ -129,7 +129,7 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                 array<unsigned long long, 4> entry;
                 entry = {1, SpEntry.first, SpEntry.second.first, SpEntry.second.second};
                 int destinationProcessor = (int) (SpEntry.first % (unsigned long long) numberOfProcessors);
-                printf("Processor Id: %d ----> Destination processor: %d\n", processorId, destinationProcessor);
+                // printf("Processor Id: %d ----> Destination processor: %d\n", processorId, destinationProcessor);
                 sendList[destinationProcessor].push_back(entry);
             }
 
@@ -141,13 +141,13 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                 } 
             }
 
-            for(auto &SendListEntry: sendList){
-                printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
-                for(auto &message: SendListEntry.second){
-                    printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
-                }
-                printf("\n");
-            }
+            // for(auto &SendListEntry: sendList){
+            //     printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
+            //     for(auto &message: SendListEntry.second){
+            //         printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
+            //     }
+            //     printf("\n");
+            // }
             
             MPI_Request rec_request[numberOfProcessors];
             MPI_Request send_request[numberOfProcessors];
@@ -171,13 +171,13 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                 }
             }
 
-            for(auto &SendListEntry: sendList){
-                printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
-                for(auto &message: SendListEntry.second){
-                    printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
-                }
-                printf("\n");
-            }
+            // for(auto &SendListEntry: sendList){
+            //     printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
+            //     for(auto &message: SendListEntry.second){
+            //         printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
+            //     }
+            //     printf("\n");
+            // }
 
             while(!allSent || !allReceived){
                 
@@ -187,7 +187,7 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                         if(i != processorId){
                             int flag_sent = 0;
                             MPI_Test(&send_request[i], &flag_sent, MPI_STATUS_IGNORE);
-                            printf("Processor Id: %d -----------> to Processor: %d flag_sent: %d\n", processorId, i, flag_sent);
+                            //printf("Processor Id: %d -----------> to Processor: %d flag_sent: %d\n", processorId, i, flag_sent);
                             if(flag_sent == 1){
                                 //MPI_Request_free(&send_request[i]);
                                 send_request[i] = MPI_REQUEST_NULL;
@@ -207,7 +207,7 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                         int flag_rec = 0;
                         if(!stopComm[i]){
                             MPI_Test(&rec_request[i], &flag_rec, MPI_STATUS_IGNORE);
-                            printf("Processor Id: %d -----------> from Processor: %d flag_rec: %d\n", processorId, i, flag_rec);
+                            //printf("Processor Id: %d -----------> from Processor: %d flag_rec: %d\n", processorId, i, flag_rec);
                             if(flag_rec == 1){
                                 rec_request[i] = MPI_REQUEST_NULL;
                                 if(receive[i][0] != 0){
@@ -219,7 +219,7 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                                         Dp[t] = d;
                                         Ap.push(t);
                                     }
-                                    printf("ProcessorId: %d from Processor: %d ------> I'm here!!!!!\n", processorId, i);
+                                    //printf("ProcessorId: %d from Processor: %d ------> I'm here!!!!!\n", processorId, i);
             
                                     MPI_Irecv(&receive[i], 4, MPI_UNSIGNED_LONG_LONG, i, 0, MPI_COMM_WORLD, &rec_request[i]);
                                     allReceived = false;
@@ -236,13 +236,13 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
 
         }
 
-        for(auto &FpEntry: Fp){
-            printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
-        }
+        // for(auto &FpEntry: Fp){
+        //     printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
+        // }
 
-        for(auto &DpEntry: Dp){
-            printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
-        }
+        // for(auto &DpEntry: Dp){
+        //     printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
+        // }
 
     //  update |A| once more [all reduce]
         int numberOfAp1 = Ap.size();
