@@ -27,7 +27,10 @@ int fileCount = 5;
 #define PEEK_DATA 2
 #define POP_DATA 3
 #define SAVE_MESSAGE 4
-#define SAVE_DATA 5
+#define SAVE_DATA_SID 5
+#define SAVE_DATA_SIZE 6
+#define SAVE_DATA_LIST 7
+#define METADATA 8
 
 struct graphData{
     set<pair<string, string>  > localTransactionsSet;
@@ -43,11 +46,12 @@ struct graphData{
 };
 
 struct metaData{
-    bool peek;
+    bool peek;    
     bool pop;
     bool stopComms;
     bool forceTransactionCreate;
 };
+
 
 void readFiles(int processorId, graphData * g) {
     string inputFileName = "./data/eth-tx-";
@@ -285,27 +289,27 @@ void todo(graphData * g) {
 //    //printf("%s %d \n", add.c_str(), g->addressGlobalIdMapping[add]);
 //    printGlobalIdTransactionSet(&g);
 
-    int lengths[6] = { 1, 1, 1, 1};
-    MPI_Datatype metaDataType;
+    // int lengths[6] = { 1, 1, 1, 1};
+    // MPI_Datatype metaDataType;
 
-    MPI_Aint displacements[4];
-    struct metaData dummy;
-    MPI_Aint base_address;
+    // MPI_Aint displacements[4];
+    // struct metaData dummy;
+    // MPI_Aint base_address;
 
-    MPI_Get_address(&dummy, &base_address);
-    MPI_Get_address(&dummy.peek, &displacements[0]);
-    MPI_Get_address(&dummy.pop, &displacements[1]);
-    MPI_Get_address(&dummy.stopComms, &displacements[2]);
-    MPI_Get_address(&dummy.forceTransactionCreate, &displacements[3]);
+    // MPI_Get_address(&dummy, &base_address);
+    // MPI_Get_address(&dummy.peek, &displacements[0]);
+    // MPI_Get_address(&dummy.pop, &displacements[1]);
+    // MPI_Get_address(&dummy.stopComms, &displacements[2]);
+    // MPI_Get_address(&dummy.forceTransactionCreate, &displacements[3]);
 
-    displacements[0] = MPI_Aint_diff(displacements[0], base_address);
-    displacements[1] = MPI_Aint_diff(displacements[1], base_address);
-    displacements[2] = MPI_Aint_diff(displacements[2], base_address);
-    displacements[3] = MPI_Aint_diff(displacements[3], base_address);
+    // displacements[0] = MPI_Aint_diff(displacements[0], base_address);
+    // displacements[1] = MPI_Aint_diff(displacements[1], base_address);
+    // displacements[2] = MPI_Aint_diff(displacements[2], base_address);
+    // displacements[3] = MPI_Aint_diff(displacements[3], base_address);
 
-    MPI_Datatype types[4] = { MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL};
-    MPI_Type_create_struct(4, lengths, displacements, types, &metaDataType);
-    MPI_Type_commit(&metaDataType);
+    // MPI_Datatype types[4] = { MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL};
+    // MPI_Type_create_struct(4, lengths, displacements, types, &metaDataType);
+    // MPI_Type_commit(&metaDataType);
 
     /** Disclaimer - always check the lowest element (from peek) belongs to P0 (leader) handle differently..... */
     // TODO : LEADER - P0 -
@@ -332,21 +336,24 @@ void todo(graphData * g) {
 
         string add = peek(g);
 
-        metaData receiver[numberOfProcessors];
+        //metaData receiver[numberOfProcessors];
+        int receiver[numberOfProcessors][4];
+        
         char** messageReceiver = new char*[numberOfProcessors];
 
-        for(int i = 0; i < numberOfProcessors; i++)
-        {
+        for(int i = 0; i < numberOfProcessors; i++) {
             messageReceiver[i] = new char[200];
         }
+
+        
 
         strcpy(messageReceiver[0], peek(g).c_str());
 
         for (int i=1; i<numberOfProcessors; i++){
-            MPI_Recv(&receiver[i], 1, metaDataType, i, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&receiver[i], 4, MPI_INT, i, METADATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(messageReceiver[i], 200, MPI_CHAR, i, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-            if (receiver[i].stopComms){
+            if (receiver[i][4]){
                 stopCommsArray[i] = true;
             }
         }
@@ -371,29 +378,35 @@ void todo(graphData * g) {
                 }
             }
 
-            metaData sendPop;
+            // metaData sendPop;
+            // sendPop.peek = false;
+            // sendPop.pop = false;
+            // sendPop.stopComms = false;
+            // sendPop.forceTransactionCreate = false;
+            int sendPop[4];
+            //for(int a=0 ; a<4 ; a++) sendPop[a] = 0;
 
             if (minString != currentAddress){
                 globalId += 1;
                 currentAddress = minString;
-                sendPop.forceTransactionCreate = true;
+                sendPop[3] = 1;
             }
 
             if (minIndex != 0){
-                MPI_Send(&sendPop, 1, metaDataType, minIndex, POP_MESSAGE, MPI_COMM_WORLD);
+                MPI_Send(&sendPop, 4, MPI_INT, minIndex, METADATA, MPI_COMM_WORLD);
                 MPI_Send(&globalId, 1, MPI_UNSIGNED_LONG_LONG, minIndex, POP_DATA, MPI_COMM_WORLD);
 
-                MPI_Recv(&receiver[minIndex], 1, metaDataType, minIndex, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&receiver[minIndex], 4, MPI_INT, minIndex, METADATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 MPI_Recv(messageReceiver[minIndex], 200, MPI_CHAR, minIndex, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-                if (receiver[minIndex].stopComms){
+                if (receiver[minIndex][4]){
                     stopCommsArray[minIndex] = true;
                 }
 
             } else {
                 // handle within process 0
                 pop(globalId, g);
-                if (sendPop.forceTransactionCreate){
+                if (sendPop[3]){
                     forceCreateTransactionEntry(globalId, g);
                 }
 
@@ -419,40 +432,55 @@ void todo(graphData * g) {
 
         string add = peek(g);
         
-        metaData sendData;
+        //metaData sendData;
+        // sendData.peek = false;
+        // sendData.pop = false;
+        // sendData.stopComms = false;
+        // sendData.forceTransactionCreate = false;
+        int sendData[4];
+        //for(int a=0 ; a<4 ; a++) sendPop[a] = 0;
 
         if (g->localAddressSet.size() == 0){
-            sendData.stopComms = true;
+            sendData[4] = 1;
             //printf("%d REACHED\n", processorId);
         }
 
-        MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
+        MPI_Send(&sendData, 4, MPI_INT, 0, METADATA, MPI_COMM_WORLD);
         MPI_Send(add.c_str(), add.size()+1, MPI_CHAR, 0, PEEK_DATA, MPI_COMM_WORLD);
 
         while(g->localAddressSet.size() > 0){
-            metaData popReceive;
+            //metaData popReceive;
+            int popReceive[4];
+            //for(int a=0 ; a<4 ; a++) sendPop[a] = 0;
+
             unsigned long long globalIdReceive;
 
-            MPI_Recv(&popReceive, 1, metaDataType, 0, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&popReceive, 4, MPI_INT, 0, METADATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(&globalIdReceive, 1, MPI_UNSIGNED_LONG_LONG, 0, POP_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             pop(globalIdReceive, g);
 
-            if (popReceive.forceTransactionCreate){
+            if (popReceive[3]){
             //if(g->localTransactionsMap.find(add) != g->localTransactionsMap.end()) {            
                 forceCreateTransactionEntry(globalIdReceive, g);
             }
             
             add = peek(g);
 
-            metaData sendData;
+            // metaData sendData;
+            // sendData.peek = false;
+            // sendData.pop = false;
+            // sendData.stopComms = false;
+            // sendData.forceTransactionCreate = false;
+
+            int sendData[4];
 
             if (g->localAddressSet.size() == 0){
-                sendData.stopComms = true;
+                sendData[4] = 1;
                 //printf("%d REACHED\n", processorId);
             }
 
-            MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
+            MPI_Send(&sendData, 4, MPI_INT, 0, METADATA, MPI_COMM_WORLD);
             MPI_Send(add.c_str(), add.size()+1, MPI_CHAR, 0, PEEK_DATA, MPI_COMM_WORLD);
         }
     }
@@ -493,7 +521,7 @@ void sortTransactions(graphData * g, int processorId) {
         g->transactionGlobalIdSet.insert(pair<unsigned long long, unsigned long long>(g->addressGlobalIdMapping[itr->first], g->addressGlobalIdMapping[itr->second]));
     }
 
-    int lengths[6] = { 1, 1, 1, 1};
+    int lengths[4] = { 1, 1, 1, 1};
     MPI_Datatype metaDataType;
 
     MPI_Aint displacements[4];
@@ -530,6 +558,11 @@ void sortTransactions(graphData * g, int processorId) {
         metaData receiver[numberOfProcessors];
         unsigned long long messageReceiverTrn[numberOfProcessors];
 
+        receiver[0].peek = false;
+        receiver[0].pop = false;
+        receiver[0].stopComms = false;
+        receiver[0].forceTransactionCreate = false;
+
         unsigned long long peekData = peekTransaction(g);        
         messageReceiverTrn[0] =  peekTransaction(g);
 
@@ -537,14 +570,18 @@ void sortTransactions(graphData * g, int processorId) {
         cout<<"sortTransactions: processorId:"<<processorId<<" Receieving peek from all\n";
         //  receive calls from all followers
         for (int i=1 ; i<numberOfProcessors ; i++) {
+            receiver[i].peek = false;
+            receiver[i].pop = false;
+            receiver[i].stopComms = false;
+            receiver[i].forceTransactionCreate = false;
+
             MPI_Recv(&receiver[i], 1, metaDataType, i, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             if (receiver[i].stopComms){
                 stopCommsArray[i] = true;
+                cout<<"sortTransactions: processorId:"<<processorId<<" Processor:"<<i<<" sent stopcoms\n";
             } 
             else {
-                unsigned long long temp;
-                MPI_Recv(&temp, 1, MPI_UNSIGNED_LONG_LONG, i, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                messageReceiverTrn[i] = temp;
+                MPI_Recv(&messageReceiverTrn[i], 1, MPI_UNSIGNED_LONG_LONG, i, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 cout<<"sortTransactions: processorId:"<<processorId<<" ******messageReceiverTrnn : "<<messageReceiverTrn[i]<<endl;
 
             }          
@@ -574,22 +611,28 @@ void sortTransactions(graphData * g, int processorId) {
             cout<<"sortTransactions: processorId:"<<processorId<<" check2\n";
             unsigned long long sizeOfList;
             int destinationProcessor = minGlobalId % numberOfProcessors;
-            cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor = minGlobalId:"<<minGlobalId<<" % "<<" numberOfProcessors:"<<numberOfProcessors<<" = "<<destinationProcessor<<endl;
+            
             
             
             cout<<"sortTransactions: processorId:"<<processorId<<" minGlobalId: "<<minGlobalId<<" minIndex: "<<minIndex<<"\n";
             if (minIndex != 0) {
                 cout<<"sortTransactions: processorId:"<<processorId<<" sending pop\n";
                 metaData sendPop;
+                sendPop.peek = false;
                 sendPop.pop = true;
+                sendPop.stopComms = false;
+                sendPop.forceTransactionCreate = false;
+
                 //here rn
                 MPI_Send(&sendPop, 1, metaDataType, minIndex, POP_MESSAGE, MPI_COMM_WORLD);
                 
                 cout<<"sortTransactions: processorId:"<<processorId<<" Receiving peek again\n";
                 MPI_Recv(&receiver[minIndex], 1, metaDataType, minIndex, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 cout<<"\n";
-                if (receiver[minIndex].stopComms)
+                if (receiver[minIndex].stopComms) {
                     stopCommsArray[minIndex] = true;
+                    cout<<"sortTransactions: processorId:"<<processorId<<" Processor:"<<minIndex<<" sent stopcoms\n";
+                }
                 else {
                     MPI_Recv(&messageReceiverTrn[minIndex], 1, MPI_UNSIGNED_LONG_LONG, minIndex, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<"*** messageReceiverTrn["<<minIndex<<"]: "<<messageReceiverTrn[minIndex]<<endl;
@@ -598,21 +641,29 @@ void sortTransactions(graphData * g, int processorId) {
                 for(unsigned long long i=0 ; i<numberOfProcessors ; i++)
                     cout<<"sortTransactions: processorId:"<<processorId<<" messageReceiverTrn["<<i<<"]: "<<messageReceiverTrn[i]<<endl;
 
+                destinationProcessor = minGlobalId % numberOfProcessors;
+                
+                cout<<"checkcheck1 destinationProcessor:"<<destinationProcessor<<"  id: "<<minGlobalId<<endl;
                 if(destinationProcessor == 0) {
-                    cout<<"sortTransactions: processorId:"<<processorId<<" P0 saving transaction\n";
+                    cout<<"sortTransactions: processorId:"<<processorId<<" P0 saving transaction from another Prc\n";
                     metaData actionReceive;
+                    actionReceive.peek = false;
+                    actionReceive.pop = false;
+                    actionReceive.stopComms = false;
+                    actionReceive.forceTransactionCreate = false;
+
                     MPI_Recv(&actionReceive, 1, metaDataType, MPI_ANY_SOURCE, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     
-                    unsigned long long sourceGlobalId, sizeOfList;
-                    MPI_Recv(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    cout<<"sortTransactions: processorId:"<<processorId<<" P0 saving transaction sourceGlobalId:"<<sourceGlobalId<<"\n";
-                    MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    unsigned long long sourceId, sizeOfList;
+                    MPI_Recv(&sourceId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SID, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    cout<<"sortTransactions: processorId:"<<processorId<<" P0 saving transaction sourceId:"<<sourceId<<" destPrc:"<<destinationProcessor<<"\n";
+                    MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     
                     unsigned long long destinationArr[sizeOfList];
                     if(sizeOfList != 0)
-                        MPI_Recv(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                        MPI_Recv(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_LIST, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-                    saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
+                    saveSortedTransaction(g, sourceId, sizeOfList, destinationArr);
                 }
             }
 
@@ -645,26 +696,33 @@ void sortTransactions(graphData * g, int processorId) {
                     cout<<"sortTransactions: processorId:"<<processorId<<" peek: "<<peekData<<endl;
                     messageReceiverTrn[0] = peekData;
                     for(unsigned long long i=0 ; i<numberOfProcessors ; i++)
-                    cout<<"sortTransactions: processorId:"<<processorId<<" messageReceiverTrn["<<i<<"]: "<<messageReceiverTrn[i]<<endl;
+                        cout<<"sortTransactions: processorId:"<<processorId<<" messageReceiverTrn["<<i<<"]: "<<messageReceiverTrn[i]<<endl;
                 }
 
 
                 //destinatiomn is p0
+                cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" sourceID: "<<minGlobalId<<"\n";
                 cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<"\n";
                 if(destinationProcessor == processorId) {
+                    cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" sourceID: "<<minGlobalId<<" saving in if\n";
                     //save transaction and continue
                     saveSortedTransaction(g, minGlobalId, sizeOfList, destinationArr);
                     //cout<<"skip\n";
                 }
                 else {
+                    cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" sourceID: "<<minGlobalId<<" sending in else\n";
                     metaData sendSortedData;
+                    sendSortedData.peek = false;
+                    sendSortedData.pop = false;
+                    sendSortedData.stopComms = false;
                     sendSortedData.forceTransactionCreate = true;
+
                     cout<<"sortTransactions: processorId:"<<processorId<<" Sending data:"<<minGlobalId<<" to destination:"<<destinationProcessor<<" srcGID:"<<minGlobalId<<"\n";
                     MPI_Send(&sendSortedData, 1, metaDataType, destinationProcessor, POP_MESSAGE, MPI_COMM_WORLD);
-                    MPI_Send(&minGlobalId, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA, MPI_COMM_WORLD);
-                    MPI_Send(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA, MPI_COMM_WORLD);
+                    MPI_Send(&minGlobalId, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SID, MPI_COMM_WORLD);
+                    MPI_Send(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SIZE, MPI_COMM_WORLD);
                     if(sizeOfList != 0)
-                        MPI_Send(&destinationArr, g->localTransactionsMap[peekData].size(), MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA, MPI_COMM_WORLD);
+                        MPI_Send(&destinationArr, g->localTransactionsMap[peekData].size(), MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_LIST, MPI_COMM_WORLD);
                     cout<<"sortTransactions: processorId:"<<processorId<<" sent data to destination\n";
                 }
             }
@@ -677,10 +735,14 @@ void sortTransactions(graphData * g, int processorId) {
         //All processors sent stopComs.
         //send p-1 stop comm messages to all followers to end listening for sorted transactions.
         metaData sendStop;
+        sendStop.peek = false;
+        sendStop.pop = false;
         sendStop.stopComms = true;
-        cout<<"sortTransactions: processorId:"<<processorId<<" sending stopAllComms\n";
+        sendStop.forceTransactionCreate = false;
+        
         for (int i=1 ; i<numberOfProcessors ; i++) {
-            MPI_Send(&sendStop, 1, metaDataType, i, PEEK_MESSAGE, MPI_COMM_WORLD);
+            cout<<"sortTransactions: processorId:"<<processorId<<" sending stopAllComms\n";
+            MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
         }
     }
     
@@ -692,9 +754,15 @@ void sortTransactions(graphData * g, int processorId) {
         unsigned long long peekData = peekTransaction(g);
         cout<<"sortTransactions: processorId:"<<processorId<<" curr peek:"<<peekData<<"\n";
         metaData sendData;
+        sendData.peek = false;
+        sendData.pop = false;
+        sendData.stopComms = false;
+        sendData.forceTransactionCreate = false;
+        
 
         if (g->localTransactionsMap.size() == 0){
             sendData.stopComms = true;
+            cout<<"sortTransactions: processorId:"<<processorId<<" done sending stopcoms\n";
             MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
             //printf("%d REACHED end of localTransactionsMap on \n", processorId);
         }
@@ -711,17 +779,25 @@ void sortTransactions(graphData * g, int processorId) {
 
         while(g->localTransactionsMap.size() > 0 || !stopAllComms) {
             metaData actionReceive;
-            cout<<"sortTransactions: processorId:"<<processorId<<" check\n";
+            actionReceive.peek = false;
+            actionReceive.pop = false;
+            actionReceive.forceTransactionCreate = false;
+            actionReceive.stopComms = false;
+
+            cout<<"sortTransactions: processorId:"<<processorId<<" receiving actionReceive\n";
             //wait for call from P0 and check metadata, whether to POP or to SAVE.
             MPI_Recv(&actionReceive, 1, metaDataType, MPI_ANY_SOURCE, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            cout<<"sortTransactions: processorId:"<<processorId<<" prev peek:"<<peekData << " received actionReceive:"<<actionReceive.forceTransactionCreate<<" "<<actionReceive.pop<<" "<<actionReceive.stopComms<<"\n";
             cout<<"sortTransactions: processorId:"<<processorId<<" check2\n";
             //if p0 asked to pop
             if(actionReceive.pop) {
                 cout<<"sortTransactions: processorId:"<<processorId<<" Received pop\n";
                 
                 //only getting data to send, actual send after peek
+                
                 int destinationProcessor = peekData % numberOfProcessors;
-                unsigned long long sizeOfList = g->localTransactionsMap[peekData].size();
+
+                unsigned long long sizeOfList = g->localTransactionsMap[peekData].size(), sourceGlobalId = peekData;
                 unsigned long long destinationArr[sizeOfList];
                 map<unsigned long long, list<unsigned long long> >::iterator it = g->localTransactionsMap.begin();
                 list<unsigned long long>::iterator it1 = it->second.begin();
@@ -731,13 +807,16 @@ void sortTransactions(graphData * g, int processorId) {
                         destinationArr[i] = *it1;
                     }                
                 
+                cout<<"popping gid:"<<sourceGlobalId<<endl;
                 
-                popTransaction(peekData, g);
+                popTransaction(sourceGlobalId, g);
 
 
                 if (g->localTransactionsMap.size() == 0) {
                     sendData.stopComms = true;
+                    cout<<"sortTransactions: processorId:"<<processorId<<" done sending stopcoms\n";
                     MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
+                    continue;
                     //printf("%d REACHED\n", processorId);
                 }
                 else {
@@ -753,6 +832,12 @@ void sortTransactions(graphData * g, int processorId) {
                     cout<<endl;
                     peekData = peekTransaction(g);
                     metaData sendData;
+
+                    sendData.peek = false;
+                    sendData.pop = false;
+                    sendData.forceTransactionCreate = false;
+                    sendData.stopComms = false;
+
                     cout<<"sortTransactions: processorId:"<<processorId<<" done sending peek:"<<peekData<<endl;
                     MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
                     MPI_Send(&peekData, 1, MPI_UNSIGNED_LONG_LONG, 0, PEEK_DATA, MPI_COMM_WORLD);
@@ -760,21 +845,30 @@ void sortTransactions(graphData * g, int processorId) {
 
                 cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor:"<<destinationProcessor<<"\n";
                 //if destination is another processor
+                
+                cout<<"checkcheck2 destinationProcessor:"<<destinationProcessor<<"  sourceGlobalId: "<<sourceGlobalId<<endl;
+
                 if(destinationProcessor != processorId) {
+
                     metaData sendSortedData;
                     sendSortedData.forceTransactionCreate = true;
-                    
+                    sendSortedData.peek = false;
+                    sendSortedData.pop = false;
+                    sendSortedData.stopComms = false;
+
+                    cout<<"sortTransactions: processorId:"<<processorId<<" in P1 sending sourceGlobalId:"<<sourceGlobalId<<" to destinationProcessor:"<<destinationProcessor<<"\n";
                     MPI_Send(&sendSortedData, 1, metaDataType, destinationProcessor, POP_MESSAGE, MPI_COMM_WORLD);
-                    MPI_Send(&peekData, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA, MPI_COMM_WORLD);
-                    MPI_Send(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA, MPI_COMM_WORLD);
+                    MPI_Send(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SID, MPI_COMM_WORLD);
+                    MPI_Send(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SIZE, MPI_COMM_WORLD);
                     if(sizeOfList != 0)
-                        MPI_Send(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA, MPI_COMM_WORLD);
+                        MPI_Send(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_LIST, MPI_COMM_WORLD);
                 }
                 else {
+                    cout<<"checkcheck destinationProcessor:"<<destinationProcessor<<"  sourceGlobalId: "<<sourceGlobalId<<endl;
                     cout<<"saving follower not\n";
-                    saveSortedTransaction(g, peekData, g->localTransactionsMap[peekData].size(), destinationArr);
+                    saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
                 }
-
+                cout<<"P1 done with everything, going to wait sourceGlobalId:"<<sourceGlobalId<<"\n";
             }
 
             else if(actionReceive.forceTransactionCreate) {            
@@ -783,13 +877,13 @@ void sortTransactions(graphData * g, int processorId) {
                     //save transaction
                     cout<<"sortTransactions: processorId:"<<processorId<<" actionReceive = Save transaction\n";
                     unsigned long long sourceGlobalId, sizeOfList;
-                    MPI_Recv(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Recv(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SID, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Save  transaction GID:"<<sourceGlobalId<<"\n";
-                    MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Received sizeOfList:"<<sizeOfList<<"\n";
                     unsigned long long destinationArr[sizeOfList];
                     if(sizeOfList != 0)
-                        MPI_Recv(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                        MPI_Recv(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_LIST, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Received dest arr, saving\n";
                     saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
 
@@ -799,7 +893,7 @@ void sortTransactions(graphData * g, int processorId) {
             }
             
             else if(actionReceive.stopComms) {
-                cout<<"sortTransactions: processorId:"<<processorId<<" Stop all comms\n";
+                cout<<"sortTransactions: processorId:"<<processorId<<" got Stop ALL comms\n";
                 stopAllComms = true;
                 break;
             }
@@ -817,7 +911,7 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &processorId);
     cout<<"num of proc:"<<numberOfProcessors<<endl;
     graphData g;
-
+printf("HELLO WORLD *****####n");
     readFiles(processorId, &g);
 
     todo(&g);
@@ -828,17 +922,17 @@ int main(int argc, char** argv) {
 
     printAddressGlobalIdMapping(&g);
 
-    sortTransactions(&g, processorId);
+    //sortTransactions(&g, processorId);
 
-    cout << "Processor Id: " << processorId << " *final printing  saveSortedTransaction: "<<g.sortedTransactionsMap.size()<<"\n";
-    for (map<unsigned long long, list<unsigned long long> >::iterator it=g.sortedTransactionsMap.begin(); it!=g.sortedTransactionsMap.end(); ++it){
-        cout << "Processor Id: " << processorId << " saveSortedTransaction final entry: " << it->first <<": [ ";
+    // cout << "Processor Id: " << processorId << " *final printing  saveSortedTransaction: "<<g.sortedTransactionsMap.size()<<"\n";
+    // for (map<unsigned long long, list<unsigned long long> >::iterator it=g.sortedTransactionsMap.begin(); it!=g.sortedTransactionsMap.end(); ++it){
+    //     cout << "Processor Id: " << processorId << " saveSortedTransaction final entry: " << it->first <<": [ ";
         
-        for (list<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
-            std::cout << *it1 <<" ";
-        }
-        cout<<"]"<<endl;
-    }
+    //     for (list<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
+    //         std::cout << *it1 <<" ";
+    //     }
+    //     cout<<"]"<<endl;
+    // }
     cout<<endl;
 
     MPI_Finalize();
