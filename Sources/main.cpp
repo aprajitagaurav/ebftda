@@ -224,6 +224,8 @@ unsigned long long peekTransaction(graphData * g){
     // }
     
     cout<<"peekTransaction: processorId:"<<processorId<<"  sending peek:"<<g->localTransactionsMap.begin()->first<<endl;
+    if(g->localTransactionsSet.size() == 0)
+        return ULLONG_MAX;
     return g->localTransactionsMap.begin()->first;
 }
 
@@ -562,7 +564,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         // receiver[0].forceTransactionCreate = false;
 
         unsigned long long peekData = peekTransaction(g);        
-        messageReceiverTrn[0] =  peekTransaction(g);
+        messageReceiverTrn[0] =  peekData;
 
         //  pop call to all followers  --- NOT NEEDED
         cout<<"sortTransactions: processorId:"<<processorId<<" Receieving peek from all\n";
@@ -575,6 +577,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
 
             MPI_Recv(&receiver[i], 1, metaDataType, i, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             if (receiver[i].stopComms){
+                messageReceiverTrn[i] = UULONG_MAX;
                 stopCommsArray[i] = true;
                 cout<<"sortTransactions: processorId:"<<processorId<<" got from: "<<i<<" stopcoms   metadata info: "<<receiver[i].pop<<" "<<receiver[i].forceTransactionCreate<<" "<<receiver[i].stopComms<<endl;
                 cout<<"sortTransactions: processorId:"<<processorId<<" Processor:"<<i<<" sent stopcoms\n";
@@ -630,6 +633,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 cout<<"\n";
                 if (receiver[minIndex].stopComms) {
                     stopCommsArray[minIndex] = true;
+                    messageReceiverTrn[minIndex] = UULONG_MAX;
                     cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" Receiving peek again, got stopcoms prev minGlobalId:"<<minGlobalId<<" stopComms  metadata info: "<<receiver[minIndex].pop<<" "<<receiver[minIndex].forceTransactionCreate<<" "<<receiver[minIndex].stopComms<<endl;
                     cout<<"sortTransactions: processorId:"<<processorId<<" Processor:"<<minIndex<<" sent stopcoms\n";
                 }
@@ -755,7 +759,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         cout<<"sortTransactions: processorId:"<<processorId<<"\n";
         //printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
         //todo - redo peak for transactions
-        unsigned long long peekData = peekTransaction(g);
+        unsigned long long peekData;
         cout<<"sortTransactions: processorId:"<<processorId<<" curr peek:"<<peekData<<"\n";
         metaData sendData;
         // sendData.peek = false;
@@ -775,6 +779,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         
         // if local transactionMap not empty send peek
         else {
+            peekData = peekTransaction(g);
             cout<<"sortTransactions: processorId:"<<processorId<<" Sending peek:"<<peekData<<"\n";
             MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
             MPI_Send(&peekData, 1, MPI_UNSIGNED_LONG_LONG, 0, PEEK_DATA, MPI_COMM_WORLD);
@@ -783,7 +788,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         //  while (!stopcomms){
         bool stopAllComms = false;
         
-        while(g->localTransactionsMap.size() > 0 || stopCommsCounter <numberOfProcessors) {
+        while(g->localTransactionsMap.size() > 0 || stopCommsCounter < numberOfProcessors) {
             cout<<"sortTransactions: processorId:"<<processorId<<" comms count: "<<stopCommsCounter<<"\n";
             metaData actionReceive;
             // actionReceive.peek = false;
@@ -827,7 +832,6 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 cout<<"popping gid:"<<sourceGlobalId<<endl;
                 
                 popTransaction(sourceGlobalId, g);
-
 
                 if (g->localTransactionsMap.size() == 0) {
                     metaData sendData;
