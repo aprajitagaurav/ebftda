@@ -95,6 +95,10 @@ void readFiles(int processorId, graphData * g) {
 }
 
 string peek(graphData * g){
+    if (g->localAddressSet.size() ==0){
+        return "";
+    }
+
     return g->localAddressSet.begin()->c_str();
 }
 
