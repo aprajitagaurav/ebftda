@@ -32,13 +32,18 @@ int fileCount = 5;
 #define SAVE_DATA_LIST 7
 #define METADATA 8
 
+struct graph{
+    map<unsigned long long, vector<unsigned long long> > adjList;
+    map<string, unsigned long long> addressGlobalIdMapping;
+};
+
 struct graphData{
     set<pair<string, string>  > localTransactionsSet;
     set<string> localAddressSet;
 
     map<unsigned long long, list<unsigned long long> > localTransactionsMap;
 
-    map<unsigned long long, list<unsigned long long> > sortedTransactionsMap;
+    //map<unsigned long long, list<unsigned long long> > sortedTransactionsMap;
 
     set<pair<unsigned long long, unsigned long long> > transactionGlobalIdSet;
 
@@ -104,35 +109,35 @@ void readFiles(int processorId, graphData * g) {
      }
 }
 
-void saveSortedTransaction(graphData * g, unsigned long long sourceGlobalId, unsigned long long sizeOfList, unsigned long long destinationArr[]) {
-    cout<<"saveSortedTransaction: "<< "Processor Id: " << processorId <<" saving sourceGlobalId:"<<sourceGlobalId<<"\n";
+void addToAdjList(graph* graphInstance, unsigned long long sourceGlobalId, unsigned long long sizeOfList, unsigned long long destinationArr[]) {
+    cout<<"addToAdjList: "<< "Processor Id: " << processorId <<" saving sourceGlobalId:"<<sourceGlobalId<<"\n";
     unsigned long long i;
-    cout<<"g->sortedTransactionsMap.count(sourceGlobalId): "<<g->sortedTransactionsMap.count(sourceGlobalId)<<endl;
+    cout<<"graphInstance->addToAdjList.count(sourceGlobalId): "<<graphInstance->adjList.count(sourceGlobalId)<<endl;
     //if entry exists, add to list
-    if(g->sortedTransactionsMap.count(sourceGlobalId)) {
-        cout<<"saveSortedTransaction: "<< "Processor Id: " << processorId <<" transaction already exists for src "<<sourceGlobalId<<" size="<<g->sortedTransactionsMap[sourceGlobalId].size()<<" adding "<<sizeOfList<<" more elemnets \n";
+    if(graphInstance->adjList.count(sourceGlobalId)) {
+        cout<<"addToAdjList: "<< "Processor Id: " << processorId <<" transaction already exists for src "<<sourceGlobalId<<" size="<<graphInstance->adjList[sourceGlobalId].size()<<" adding "<<sizeOfList<<" more elemnets \n";
         if(sizeOfList != 0)
-            for(i=0 ; i<sizeOfList ; i++)   g->sortedTransactionsMap[sourceGlobalId].push_back(destinationArr[i]);
-        cout<<"new g->sortedTransactionsMap.count(sourceGlobalId): "<<g->sortedTransactionsMap.count(sourceGlobalId)<<endl;
+            for(i=0 ; i<sizeOfList ; i++)   graphInstance->adjList[sourceGlobalId].push_back(destinationArr[i]);
+        cout<<"new graphInstance->addToAdjList.count(sourceGlobalId): "<<graphInstance->adjList.count(sourceGlobalId)<<endl;
     }
 
     else {
-        cout<<"saveSortedTransaction: "<< "Processor Id: " << processorId <<" creating new transaction adding src "<<sourceGlobalId<<" of size "<<sizeOfList<<" elemnets \n";
-        list<unsigned long long> l;
+        cout<<"addToAdjList: "<< "Processor Id: " << processorId <<" creating new transaction adding src "<<sourceGlobalId<<" of size "<<sizeOfList<<" elemnets \n";
+        vector<unsigned long long> l;
 
         if(sizeOfList != 0)
             for(i=0 ; i<sizeOfList ; i++)   l.push_back(destinationArr[i]);
         
-        g->sortedTransactionsMap[sourceGlobalId] = l;
+        graphInstance->adjList[sourceGlobalId] = l;
     
     }
 
-    cout<<"saveSortedTransaction: "<< "Processor Id: " << processorId <<" DONE saving sourceGlobalId:"<<sourceGlobalId<<"\n";
+    cout<<"addToAdjList: "<< "Processor Id: " << processorId <<" DONE saving sourceGlobalId:"<<sourceGlobalId<<"\n";
     
-    for (map<unsigned long long, list<unsigned long long> >::iterator it=g->sortedTransactionsMap.begin(); it!=g->sortedTransactionsMap.end(); ++it){
-        cout << "Processor Id: " << processorId << " saveSortedTransaction entry: " << it->first <<": [ ";
+    for (map<unsigned long long, vector<unsigned long long> >::iterator it=graphInstance->adjList.begin(); it!=graphInstance->adjList.end(); ++it){
+        cout << "Processor Id: " << processorId << " addToAdjList entry: " << it->first <<": [ ";
         
-        for (list<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
+        for (vector<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
             std::cout << *it1 <<" ";
         }
         cout<<"]"<<endl;
@@ -169,7 +174,7 @@ void popTransaction(unsigned long long sourceGlobalId, graphData * g) {
     // cout<<endl;
 }
 
-void transactionsToMap(graphData * g)  {
+void transactionsToMap(graphData * g,  graph * graphInstance)  {
 
     for (set<pair<string, string> >::iterator it=g->localTransactionsSet.begin() ; it!=g->localTransactionsSet.end() ; it++) {
         
@@ -180,22 +185,23 @@ void transactionsToMap(graphData * g)  {
             g->localTransactionsMap[g->addressGlobalIdMapping[it->first]].push_back(g->addressGlobalIdMapping[it->second]);
         }
         else {
-            cout << "transactionsToMap: Processor Id: " << processorId << "  not exists key :"<< it->first<<endl;
+            cout << "transactionsToMap: Processor Id: " << processorId << " key doesnt exist :"<< it->first<<endl;
             list<unsigned long long> l;
             l.push_back(g->addressGlobalIdMapping[it->second]);
             g->localTransactionsMap[g->addressGlobalIdMapping[it->first]] = l;
         }
     }
 
-    // for (map<unsigned long long, list<unsigned long long> >::iterator it=g->localTransactionsMap.begin(); it!=g->localTransactionsMap.end(); ++it){
-    //     cout << "transactionsToMap: Processor Id: " << processorId << " Transaction: " << it->first <<": [ ";
-        
-    //     for (list<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
-    //         std::cout << *it1 <<" ";
-    //     }
-    //     cout<<"]"<<endl;
+    //construct graph->addressGlobalIdMapping with only mappings for addressGlobalIdMapping
+    for(map<string, unsigned long long>::iterator it=g->addressGlobalIdMapping.begin() ; it!=g->addressGlobalIdMapping.end() ; it++) {
+        if(g->localTransactionsMap.count(it->second))
+            graphInstance->addressGlobalIdMapping[it->first] = it->second;
+    }
 
+    // for (map<string, unsigned long long >::iterator it=graphInstance->addressGlobalIdMapping.begin(); it!=graphInstance->addressGlobalIdMapping.end(); ++it){
+    //     cout << "graphInstance->addressGlobalIdMapping: Processor Id: " << processorId << " key: " << it->first <<"  value:"<<it->second<<endl;
     // }
+    // cout<<endl;
     
 }
 
@@ -471,7 +477,7 @@ void todo(graphData * g) {
     }
 }
 
-void sortTransactions(graphData * g, int processorId) {
+void sortTransactions(graphData * g, graph * graphInstance) {
 
     cout<<"sortTransactions printing tns on Processor Id: " << processorId <<" \n";
 
@@ -532,6 +538,7 @@ void sortTransactions(graphData * g, int processorId) {
 
     // TODO : LEADER - P0 -
     if (processorId == 0) {
+        cout<<"In p0\n";
         cout<<"sortTransactions: processorId:"<<processorId<<"\n";
         //printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
 
@@ -652,7 +659,8 @@ void sortTransactions(graphData * g, int processorId) {
                         if(sizeOfList != 0)
                             MPI_Recv(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_LIST, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-                        saveSortedTransaction(g, sourceId, sizeOfList, destinationArr);
+                        //saveSortedTransaction(g, sourceId, sizeOfList, destinationArr);
+                        addToAdjList(graphInstance, sourceId, sizeOfList, destinationArr);
                     }
                 }
             }
@@ -696,7 +704,8 @@ void sortTransactions(graphData * g, int processorId) {
                 if(destinationProcessor == processorId) {
                     cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" sourceID: "<<minGlobalId<<" saving in if\n";
                     //save transaction and continue
-                    saveSortedTransaction(g, minGlobalId, sizeOfList, destinationArr);
+                    //saveSortedTransaction(g, minGlobalId, sizeOfList, destinationArr);
+                    addToAdjList(graphInstance, minGlobalId, sizeOfList, destinationArr);
                     //cout<<"skip\n";
                 }
                 else {
@@ -779,8 +788,10 @@ void sortTransactions(graphData * g, int processorId) {
             actionReceive.stopComms = false;
 
             cout<<"sortTransactions: processorId:"<<processorId<<" receiving actionReceive\n";
+            cout<<"sortTransactions: processorId:"<<processorId<<" done here\n";
             //wait for call from P0 and check metadata, whether to POP or to SAVE.
             MPI_Recv(&actionReceive, 1, metaDataType, MPI_ANY_SOURCE, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            cout<<"here\n";
             map<unsigned long long, list<unsigned long long> >::iterator it = g->localTransactionsMap.begin();
             cout<<"sortTransactions: processorId:"<<processorId<<" prev local peek:"<<peekData << ", next up top:"<<(++it++)->first<<" received actionReceive:"<<actionReceive.pop<<" "<<actionReceive.forceTransactionCreate<<" "<<actionReceive.stopComms<<"\n";
             if(actionReceive.stopComms) {
@@ -877,7 +888,8 @@ void sortTransactions(graphData * g, int processorId) {
                 else {
                     cout<<"checkcheck destinationProcessor:"<<destinationProcessor<<"  sourceGlobalId: "<<sourceGlobalId<<endl;
                     cout<<"saving follower not\n";
-                    saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
+                    //saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
+                    addToAdjList(graphInstance, sourceGlobalId, sizeOfList, destinationArr);
                 }
 
                 if(sendStopCommsToAll) {
@@ -902,6 +914,8 @@ void sortTransactions(graphData * g, int processorId) {
                     //save transaction
                     cout<<"sortTransactions: processorId:"<<processorId<<" actionReceive = Save transaction\n";
                     unsigned long long sourceGlobalId, sizeOfList;
+                    char** addr = new char*[200];
+
                     MPI_Recv(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SID, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Save  transaction GID:"<<sourceGlobalId<<"\n";
                     MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -914,7 +928,8 @@ void sortTransactions(graphData * g, int processorId) {
                         cout<<"Received dest arr, printing"<<destinationArr[i]<<", ";
                     }
                     cout<<endl;
-                    saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
+                    //saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
+                    addToAdjList(graphInstance, sourceGlobalId, sizeOfList, destinationArr);
 
                     //MPI_Recv(&actionReceive, 1, metaDataType, 0, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Done saving id:"<<sourceGlobalId<<"\n";
@@ -942,25 +957,30 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &processorId);
 
     graphData g;
+    graph graphInstance;
 
     readFiles(processorId, &g);
 
     todo(&g);
 
-    transactionsToMap(&g);
+    transactionsToMap(&g, &graphInstance);
 
     printGlobalIdTransactionSet(&g);
 
     printAddressGlobalIdMapping(&g);
 
-    sortTransactions(&g, processorId);
+    // createAddrMapping(&g, &graphInstance);
+
+    sortTransactions(&g, &graphInstance);
+
+    
 
     cout<<"------------DONE --------------\n\n";
-    cout << "Processor Id: " << processorId << " *final printing  saveSortedTransaction: "<<g.sortedTransactionsMap.size()<<"\n";
-    for (map<unsigned long long, list<unsigned long long> >::iterator it=g.sortedTransactionsMap.begin(); it!=g.sortedTransactionsMap.end(); ++it){
-        cout << "Processor Id: " << processorId << " saveSortedTransaction final entry: " << it->first <<": [ ";
+    cout << "Processor Id: " << processorId << " *final printing  addToAdjList: "<<graphInstance.adjList.size()<<"\n";
+    for (map<unsigned long long, vector<unsigned long long> >::iterator it=graphInstance.adjList.begin(); it!=graphInstance.adjList.end(); ++it){
+        cout << "Processor Id: " << processorId << " addToAdjList final entry: " << it->first <<": [ ";
         
-        for (list<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
+        for (vector<unsigned long long>::iterator it1=it->second.begin(); it1!=it->second.end(); ++it1) {
             std::cout << *it1 <<" ";
         }
         cout<<"]"<<endl;
