@@ -21,6 +21,7 @@ int numberOfProcessors;
 int processorId;
 int fileCount = 5;
 
+#define ULLONG_MAX 18446744073709551615
 #define DEFAULT_NULL -1
 #define PEEK_MESSAGE 0
 #define POP_MESSAGE 1
