@@ -1,5 +1,5 @@
 ebftda: ./Sources/main.cpp ./Sources/Reader.cpp ./Sources/Transaction.cpp
-	    mpicxx -o output ./Sources/main.cpp ./Sources/Reader.cpp ./Sources/Transaction.cpp
-		mpirun ./output
+	    mpicxx -o ebftda ./Sources/main.cpp ./Sources/Reader.cpp ./Sources/Transaction.cpp
+		mpirun ./ebftda
 clean:
-		rm output
+		rm ebftda

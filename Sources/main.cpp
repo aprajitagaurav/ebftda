@@ -6,6 +6,7 @@
 #include "../Headers/Transaction.h"
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <set>
 #include <string>
@@ -105,12 +106,10 @@ void pop(int globalId, graphData * g){
     g->localAddressSet.erase(it);
 
     g->addressGlobalIdMapping[address] = globalId;
-
-    printf("%d popped %s, assigned global id : %d\n", processorId, address.c_str(), globalId);
 }
 
 void forceCreateTransactionEntry(int globalId, graphData * g){
-    printf("%d force transaction created for global id : %d\n", processorId, globalId);
+//    printf("%d force transaction created for global id : %d\n", processorId, globalId);
 
     g->transactionGlobalIdSet.insert(pair<int, int>(globalId, DEFAULT_NULL));
 }
@@ -124,9 +123,14 @@ void printAddressSet(graphData * g){
 }
 
 void printAddressGlobalIdMapping(graphData * g){
+    string fileName = "./output/processor-"+to_string(processorId);
+    printf("HELLO %s\n", fileName.c_str());
+
+    FILE * fp = fopen(fileName.c_str(), "w");
+
     for (auto const& x : g->addressGlobalIdMapping)
     {
-        printf("Processor %d, address : %s, global id : %d\n",processorId, x.first.c_str(), x.second);
+        fprintf(fp, "Processor %d, address : %s, global id : %d\n",processorId, x.first.c_str(), x.second);
     }
 }
 
@@ -210,8 +214,6 @@ void todo(graphData * g) {
     //
 
     if (processorId == 0){
-        printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
-
         bool stopComms;
         bool stopCommsArray[numberOfProcessors];
 
@@ -256,7 +258,6 @@ void todo(graphData * g) {
             minIndex = -1;
 
             for (int i=0; i<numberOfProcessors; i++){
-                printf("HELLO %d %d\n", i, stopCommsArray[i]);
                 if (!stopCommsArray[i] && (messageReceiver[i] < minString)){
                     minIndex = i;
                     minString = messageReceiver[i];
@@ -291,7 +292,6 @@ void todo(graphData * g) {
 
                 if (g->localAddressSet.size() == 0){
                     stopCommsArray[0] = true;
-                    printf("%d REACHED\n", processorId);
                 }
 
                 strcpy(messageReceiver[0], peek(g).c_str());
@@ -307,15 +307,12 @@ void todo(graphData * g) {
     //      2. peek if not fully empty
     //   send stopComms flag..
     else{
-        printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
-
         string add = peek(g);
 
         metaData sendData;
 
         if (g->localAddressSet.size() == 0){
             sendData.stopComms = true;
-            printf("%d REACHED\n", processorId);
         }
 
         MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
@@ -340,7 +337,6 @@ void todo(graphData * g) {
 
             if (g->localAddressSet.size() == 0){
                 sendData.stopComms = true;
-                printf("%d REACHED\n", processorId);
             }
 
             MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
@@ -406,7 +402,7 @@ int main(int argc, char** argv) {
 
     todo(&g);
 
-    printGlobalIdTransactionSet(&g);
+//    printGlobalIdTransactionSet(&g);
 
     printAddressGlobalIdMapping(&g);
 
