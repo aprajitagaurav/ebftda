@@ -526,6 +526,10 @@ void sortTransactions(graphData * g, int processorId) {
     MPI_Type_create_struct(4, lengths, displacements, types, &metaDataType);
     MPI_Type_commit(&metaDataType);
     
+
+    int stopCommsCounter = 0;
+    bool sendStopCommsToAll = false;
+
     // TODO : LEADER - P0 -
     if (processorId == 0) {
         cout<<"sortTransactions: processorId:"<<processorId<<"\n";
@@ -734,6 +738,7 @@ void sortTransactions(graphData * g, int processorId) {
     
     // TODO FOLLOWER :
     else {
+        
         cout<<"sortTransactions: processorId:"<<processorId<<"\n";
         //printf("----------FOLLOWER %d size : %lu\n",processorId, g->localAddressSet.size());
         //todo - redo peak for transactions
@@ -748,6 +753,7 @@ void sortTransactions(graphData * g, int processorId) {
 
         if (g->localTransactionsMap.size() == 0){
             sendData.stopComms = true;
+            sendStopCommsToAll = true;
             cout<<" stopcoms metadata info: "<<sendData.pop<<" "<<sendData.forceTransactionCreate<<" "<<sendData.stopComms<<endl;
             cout<<"sortTransactions: processorId:"<<processorId<<"  sending stopcoms init\n";
             MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
@@ -763,8 +769,9 @@ void sortTransactions(graphData * g, int processorId) {
 
         //  while (!stopcomms){
         bool stopAllComms = false;
-
-        while(g->localTransactionsMap.size() > 0 || !stopAllComms) {
+        
+        while(g->localTransactionsMap.size() > 0 || stopCommsCounter <numberOfProcessors) {
+            cout<<"sortTransactions: processorId:"<<processorId<<" comms count: "<<stopCommsCounter<<"\n";
             metaData actionReceive;
             // actionReceive.peek = false;
             actionReceive.pop = false;
@@ -776,6 +783,12 @@ void sortTransactions(graphData * g, int processorId) {
             MPI_Recv(&actionReceive, 1, metaDataType, MPI_ANY_SOURCE, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             map<unsigned long long, list<unsigned long long> >::iterator it = g->localTransactionsMap.begin();
             cout<<"sortTransactions: processorId:"<<processorId<<" prev local peek:"<<peekData << ", next up top:"<<(++it++)->first<<" received actionReceive:"<<actionReceive.pop<<" "<<actionReceive.forceTransactionCreate<<" "<<actionReceive.stopComms<<"\n";
+            if(actionReceive.stopComms) {
+                stopCommsCounter++;
+                cout<<"sortTransactions: processorId:"<<processorId<<" got Stop comms: "<<stopCommsCounter<<"\n";
+                cout<<"sortTransactions: processorId:"<<processorId<<" got Stop comms: "<<stopCommsCounter<<"\n";
+            }
+                
             cout<<"sortTransactions: processorId:"<<processorId<<" check2\n";
             
             //if p0 asked to pop
@@ -806,6 +819,7 @@ void sortTransactions(graphData * g, int processorId) {
                     sendData.pop = false;
                     sendData.forceTransactionCreate = false;
                     sendData.stopComms = true;
+                    sendStopCommsToAll = true;
                     cout<<"prev min:"<<sourceGlobalId<<"localTransactionsMap size = 0\n";
                     cout<<"sortTransactions: processorId:"<<processorId<<"  sending stopcoms\n";
                     cout<<"prev min:"<<sourceGlobalId<<" stopComs metadata info: "<<sendData.pop<<" "<<sendData.forceTransactionCreate<<" "<<sendData.stopComms<<endl;
@@ -865,6 +879,20 @@ void sortTransactions(graphData * g, int processorId) {
                     cout<<"saving follower not\n";
                     saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
                 }
+
+                if(sendStopCommsToAll) {
+                    stopCommsCounter++;
+                    metaData sendStop;
+                    sendStop.stopComms = true;
+                    sendStop.forceTransactionCreate = false;
+                    sendStop.pop = false;
+                    for (int i=1 ; i<numberOfProcessors ; i++) {
+                        cout<<"sortTransactions: processorId:"<<processorId<<" sending stopComms to all processors expect me and 0\n";
+                        if(i != processorId)
+                            MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
+                    }
+                }
+
                 cout<<" processorId:"<<processorId<<" done pop, going to wait sourceGlobalId:"<<sourceGlobalId<<"\n";
             }
 
@@ -894,11 +922,12 @@ void sortTransactions(graphData * g, int processorId) {
                 cout<<" processorId:"<<processorId<<" done force save, going to wait sourceGlobalId:"<<sourceGlobalId<<"\n";
             }
             
-            else if(actionReceive.stopComms) {
-                cout<<"sortTransactions: processorId:"<<processorId<<" got Stop ALL comms\n";
-                stopAllComms = true;
-                break;
-            }
+            
+            // else if(actionReceive.stopComms) {
+            //     cout<<"sortTransactions: processorId:"<<processorId<<" got Stop ALL comms\n";
+            //     stopAllComms = true;
+            //     break;
+            // }
         }
     }
 
