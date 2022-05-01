@@ -1158,6 +1158,8 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                                     allSent = false;
                                 }
                             }
+                            else
+                                allSent = false;
                         }
                     }
                 }
