@@ -34,6 +34,7 @@ int fileCount = 5;
 #define SAVE_DATA_SIZE 6
 #define SAVE_DATA_LIST 7
 #define METADATA 8
+#define SAVE_DATA_ADDRESS 9
 
 struct graph{
     map<unsigned long long, vector<unsigned long long> > adjList;
@@ -51,6 +52,8 @@ struct graphData{
     set<pair<unsigned long long, unsigned long long> > transactionGlobalIdSet;
 
     map<string, unsigned long long> addressGlobalIdMapping;
+
+    map<unsigned long long, string> globalIdAddressMapping;
 };
 
 struct metaData{
@@ -240,6 +243,8 @@ void pop(unsigned long long globalId, graphData * g){
     g->localAddressSet.erase(it);
 
     g->addressGlobalIdMapping[address] = globalId;
+
+    g->globalIdAddressMapping[globalId] = address;
 
     //printf("%d popped %s, assigned global id : %d\n", processorId, address.c_str(), globalId);
 }
@@ -517,7 +522,6 @@ void sortTransactions(graphData * g, graph * graphInstance) {
     for (set<pair<string, string> >::iterator itr = g->localTransactionsSet.begin(); itr != g->localTransactionsSet.end(); itr++)
     {
         g->transactionGlobalIdSet.insert(pair<unsigned long long, unsigned long long>(g->addressGlobalIdMapping[itr->first], g->addressGlobalIdMapping[itr->second]));
-        graphInstance->addressGlobalIdMapping[itr->first] = g->addressGlobalIdMapping[itr->first];
     }
 
     int lengths[4] = { 1, 1, 1, 1};
@@ -541,7 +545,6 @@ void sortTransactions(graphData * g, graph * graphInstance) {
     MPI_Datatype types[4] = { MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL, MPI_C_BOOL};
     MPI_Type_create_struct(4, lengths, displacements, types, &metaDataType);
     MPI_Type_commit(&metaDataType);
-    
 
     int stopCommsCounter = 0;
     bool sendStopCommsToAll = false;
@@ -632,16 +635,15 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 MPI_Recv(&receiver[minIndex], 1, metaDataType, minIndex, PEEK_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 MPI_Recv(&messageReceiverTrn[minIndex], 1, MPI_UNSIGNED_LONG_LONG, minIndex, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 cout<<"sortTransactions: processorId:"<<processorId<<"*** messageReceiverTrn["<<minIndex<<"]: "<<messageReceiverTrn[minIndex]<<endl;
-              
+
                 cout<<"\n";
                 if (receiver[minIndex].stopComms) {
                     stopCommsArray[minIndex] = true;
                 }
-                    
+
                 cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" Receiving peek again, got stopcoms prev minGlobalId:"<<minGlobalId<<" stopComms  metadata info: "<<receiver[minIndex].pop<<" "<<receiver[minIndex].forceTransactionCreate<<" "<<receiver[minIndex].stopComms<<endl;
                 cout<<"sortTransactions: processorId:"<<processorId<<" Processor:"<<minIndex<<" sent stopcoms\n";
-            
-                
+
                 for(unsigned long long i=0 ; i<numberOfProcessors ; i++)
                     cout<<"sortTransactions: processorId:"<<processorId<<" messageReceiverTrn["<<i<<"]: "<<messageReceiverTrn[i]<<endl;
 
@@ -659,16 +661,23 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     MPI_Recv(&actionReceive, 1, metaDataType, MPI_ANY_SOURCE, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     if(actionReceive.forceTransactionCreate) {
                         unsigned long long sourceId, sizeOfList;
+                        char address[200];
+
                         MPI_Recv(&sourceId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SID, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                        MPI_Recv(address, 200, MPI_CHAR, MPI_ANY_SOURCE, SAVE_DATA_ADDRESS, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                         cout<<"sortTransactions: processorId:"<<processorId<<" P0 saving transaction sourceId:"<<sourceId<<" destPrc:"<<destinationProcessor<<"\n";
                         MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        
+
                         unsigned long long destinationArr[sizeOfList];
                         if(sizeOfList != 0)
                             MPI_Recv(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_LIST, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                         //saveSortedTransaction(g, sourceId, sizeOfList, destinationArr);
                         addToAdjList(graphInstance, sourceId, sizeOfList, destinationArr);
+
+                        string addressString = address;
+
+                        graphInstance->addressGlobalIdMapping[addressString] = sourceId;
                     }
                 }
             }
@@ -713,6 +722,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     //save transaction and continue
                     //saveSortedTransaction(g, minGlobalId, sizeOfList, destinationArr);
                     addToAdjList(graphInstance, minGlobalId, sizeOfList, destinationArr);
+                    graphInstance->addressGlobalIdMapping[g->globalIdAddressMapping[minGlobalId]] = minGlobalId;
                     //cout<<"skip\n";
                 }
                 else {
@@ -726,6 +736,8 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     cout<<"sortTransactions: processorId:"<<processorId<<" Sending data:"<<minGlobalId<<" to destination:"<<destinationProcessor<<" srcGID:"<<minGlobalId<<"\n";
                     MPI_Send(&sendSortedData, 1, metaDataType, destinationProcessor, POP_MESSAGE, MPI_COMM_WORLD);
                     MPI_Send(&minGlobalId, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SID, MPI_COMM_WORLD);
+                    string address = g->globalIdAddressMapping[minGlobalId];
+                    MPI_Send(address.c_str(), address.size() + 1, MPI_CHAR, destinationProcessor, SAVE_DATA_ADDRESS, MPI_COMM_WORLD);
                     MPI_Send(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SIZE, MPI_COMM_WORLD);
                     if(sizeOfList != 0)
                         MPI_Send(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_LIST, MPI_COMM_WORLD);
@@ -893,6 +905,10 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     cout<<"sortTransactions: processorId:"<<processorId<<" in P1 sending sourceGlobalId:"<<sourceGlobalId<<" to destinationProcessor:"<<destinationProcessor<<"\n";
                     MPI_Send(&sendSortedData, 1, metaDataType, destinationProcessor, POP_MESSAGE, MPI_COMM_WORLD);
                     MPI_Send(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SID, MPI_COMM_WORLD);
+
+                    string address = g->globalIdAddressMapping[sourceGlobalId];
+                    MPI_Send(address.c_str(), address.size() + 1, MPI_CHAR, destinationProcessor, SAVE_DATA_ADDRESS, MPI_COMM_WORLD);
+
                     MPI_Send(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_SIZE, MPI_COMM_WORLD);
                     if(sizeOfList != 0)
                         MPI_Send(&destinationArr, sizeOfList, MPI_UNSIGNED_LONG_LONG, destinationProcessor, SAVE_DATA_LIST, MPI_COMM_WORLD);
@@ -902,6 +918,8 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     cout<<"saving follower not\n";
                     //saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
                     addToAdjList(graphInstance, sourceGlobalId, sizeOfList, destinationArr);
+
+                    graphInstance->addressGlobalIdMapping[g->globalIdAddressMapping[sourceGlobalId]] = sourceGlobalId;
                 }
 
                 if(sendStopCommsToAll) {
@@ -926,10 +944,12 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     //save transaction
                     cout<<"sortTransactions: processorId:"<<processorId<<" actionReceive = Save transaction\n";
                     unsigned long long sourceGlobalId, sizeOfList;
-                    char** addr = new char*[200];
+                    char address[200];
 
                     MPI_Recv(&sourceGlobalId, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SID, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Save  transaction GID:"<<sourceGlobalId<<"\n";
+
+                    MPI_Recv(address, 200, MPI_CHAR, MPI_ANY_SOURCE, SAVE_DATA_ADDRESS, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     MPI_Recv(&sizeOfList, 1, MPI_UNSIGNED_LONG_LONG, MPI_ANY_SOURCE, SAVE_DATA_SIZE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Received sizeOfList:"<<sizeOfList<<"\n";
                     unsigned long long destinationArr[sizeOfList];
@@ -942,6 +962,10 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     cout<<endl;
                     //saveSortedTransaction(g, sourceGlobalId, sizeOfList, destinationArr);
                     addToAdjList(graphInstance, sourceGlobalId, sizeOfList, destinationArr);
+
+                    string addressString = address;
+
+                    graphInstance->addressGlobalIdMapping[addressString] = sourceGlobalId;
 
                     //MPI_Recv(&actionReceive, 1, metaDataType, 0, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     cout<<"sortTransactions: processorId:"<<processorId<<" Done saving id:"<<sourceGlobalId<<"\n";
