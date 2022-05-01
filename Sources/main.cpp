@@ -580,6 +580,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
             MPI_Recv(&messageReceiverTrn[i], 1, MPI_UNSIGNED_LONG_LONG, i, PEEK_DATA, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             cout<<"sortTransactions: processorId:"<<processorId<<" ******messageReceiverTrnn : "<<messageReceiverTrn[i]<<endl;
             if (receiver[i].stopComms){
+                stopCommsCounter++;
                 //messageReceiverTrn[i] = ULLONG_MAX;
                 stopCommsArray[i] = true;
             }
@@ -633,6 +634,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
               
                 cout<<"\n";
                 if (receiver[minIndex].stopComms) {
+                    stopCommsCounter++;
                     stopCommsArray[minIndex] = true;
                 }
                     
