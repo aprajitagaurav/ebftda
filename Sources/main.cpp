@@ -597,7 +597,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         int minIndex = 0;
         stopComms = checkIfStopComms(stopCommsArray);
 
-        while (!stopComms) {
+        while (stopCommsCounter < numberOfProcessors) {
             minGlobalId = ULLONG_MAX;
             minIndex = -1;
             cout<<"sortTransactions: processorId:"<<processorId<<" Calculating min\n";
