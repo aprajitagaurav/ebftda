@@ -736,18 +736,32 @@ void sortTransactions(graphData * g, graph * graphInstance) {
             stopComms = checkIfStopComms(stopCommsArray);
         }
         
-        //All processors sent stopComs.
-        //send p-1 stop comm messages to all followers to end listening for sorted transactions.
-        metaData sendStop;
-        sendStop.stopComms = true;
-        sendStop.forceTransactionCreate = false;
-        sendStop.pop = false;
-        // sendStop.forceTransactionCreate = false;
-        
-        for (int i=1 ; i<numberOfProcessors ; i++) {
-            cout<<"sortTransactions: processorId:"<<processorId<<" P0 sending stopAllComms\n";
-            MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
+        if(sendStopCommsToAll) {
+            stopCommsCounter++;
+            metaData sendStop;
+            sendStop.stopComms = true;
+            sendStop.forceTransactionCreate = false;
+            sendStop.pop = false;
+            for (int i=1 ; i<numberOfProcessors ; i++) {
+                cout<<"sortTransactions: processorId:"<<processorId<<" leader sending StopAllComs to all processors except itself\n";
+                if(i != processorId)
+                    MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
+            }
         }
+
+
+        // //All processors sent stopComs.
+        // //send p-1 stop comm messages to all followers to end listening for sorted transactions.
+        // metaData sendStop;
+        // sendStop.stopComms = true;
+        // sendStop.forceTransactionCreate = false;
+        // sendStop.pop = false;
+        // // sendStop.forceTransactionCreate = false;
+        
+        // for (int i=1 ; i<numberOfProcessors ; i++) {
+        //     cout<<"sortTransactions: processorId:"<<processorId<<" P0 sending stopAllComms\n";
+        //     MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
+        // }
     }
     
     // TODO FOLLOWER :
