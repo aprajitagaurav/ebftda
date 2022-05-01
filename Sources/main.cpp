@@ -1148,7 +1148,7 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                         if(i != processorId){
                             int flag_sent = 0;
                             MPI_Test(&send_request[i], &flag_sent, MPI_STATUS_IGNORE);
-                            //printf("Processor Id: %d -----------> to Processor: %d flag_sent: %d\n", processorId, i, flag_sent);
+                            printf("Processor Id: %d -----------> to Processor: %d flag_sent: %d\n", processorId, i, flag_sent);
                             if(flag_sent == 1){
                                 //MPI_Request_free(&send_request[i]);
                                 send_request[i] = MPI_REQUEST_NULL;
@@ -1168,7 +1168,7 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                         int flag_rec = 0;
                         if(!stopComm[i]){
                             MPI_Test(&rec_request[i], &flag_rec, MPI_STATUS_IGNORE);
-                            //printf("Processor Id: %d -----------> from Processor: %d flag_rec: %d\n", processorId, i, flag_rec);
+                            printf("Processor Id: %d -----------> from Processor: %d flag_rec: %d\n", processorId, i, flag_rec);
                             if(flag_rec == 1){
                                 rec_request[i] = MPI_REQUEST_NULL;
                                 if(receive[i][0] != 0){
