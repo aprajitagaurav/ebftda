@@ -745,7 +745,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         // sendStop.forceTransactionCreate = false;
         
         for (int i=1 ; i<numberOfProcessors ; i++) {
-            cout<<"sortTransactions: processorId:"<<processorId<<" sending stopAllComms\n";
+            cout<<"sortTransactions: processorId:"<<processorId<<" P0 sending stopAllComms\n";
             MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
         }
     }
@@ -768,9 +768,10 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         if (g->localTransactionsMap.size() == 0){
             sendData.stopComms = true;
             sendStopCommsToAll = true;
+            cout<<"sortTransactions: processorId:"<<processorId<<"  sending stopcoms init\n";
         }
         cout<<" stopcoms metadata info: "<<sendData.pop<<" "<<sendData.forceTransactionCreate<<" "<<sendData.stopComms<<endl;
-        cout<<"sortTransactions: processorId:"<<processorId<<"  sending stopcoms init\n";
+        
         //MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
         //printf("%d REACHED end of localTransactionsMap on \n", processorId);
     
@@ -833,9 +834,10 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 if (g->localTransactionsMap.size() == 0) {
                     sendData.stopComms = true;
                     sendStopCommsToAll = true;
+                    cout<<"sortTransactions: processorId:"<<processorId<<"  sending stopcoms\n";
                 }
                 cout<<"prev min:"<<sourceGlobalId<<"localTransactionsMap size = 0\n";
-                cout<<"sortTransactions: processorId:"<<processorId<<"  sending stopcoms\n";
+                
                 cout<<"prev min:"<<sourceGlobalId<<"  metadata info: "<<sendData.pop<<" "<<sendData.forceTransactionCreate<<" "<<sendData.stopComms<<endl;
                 //MPI_Send(&sendData, 1, metaDataType, 0, PEEK_MESSAGE, MPI_COMM_WORLD);
                 //printf("%d REACHED\n", processorId);
@@ -907,7 +909,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     sendStop.forceTransactionCreate = false;
                     sendStop.pop = false;
                     for (int i=1 ; i<numberOfProcessors ; i++) {
-                        cout<<"sortTransactions: processorId:"<<processorId<<" sending stopComms to all processors expect me and 0\n";
+                        cout<<"sortTransactions: processorId:"<<processorId<<" follower sending StopAllComs to all processors except me and 0\n";
                         if(i != processorId)
                             MPI_Send(&sendStop, 1, metaDataType, i, POP_MESSAGE, MPI_COMM_WORLD);
                     }
@@ -994,6 +996,10 @@ int main(int argc, char** argv) {
         cout<<"]"<<endl;
     }
     cout<<"Done printing"<<endl;
+
+
+
+
 
     MPI_Finalize();
 
