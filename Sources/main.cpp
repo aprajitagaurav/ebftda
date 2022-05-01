@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <map>
 #include <array>
+#include <stack>
 
 using namespace std;
 
@@ -1132,13 +1133,13 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
                 }
             }
 
-            // for(auto &SendListEntry: sendList){
-            //     printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
-            //     for(auto &message: SendListEntry.second){
-            //         printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
-            //     }
-            //     printf("\n");
-            // }
+            for(auto &SendListEntry: sendList){
+                printf("Processor Id: %d ----> SendList Key: %d, Values: ",  processorId, SendListEntry.first);
+                for(auto &message: SendListEntry.second){
+                    printf("[ %llu, %llu, %llu, %llu ] ", message[0], message[1], message[2], message[3]);
+                }
+                printf("\n");
+            }
 
             while(!allSent || !allReceived){
                 
