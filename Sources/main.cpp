@@ -195,11 +195,11 @@ void transactionsToMap(graphData * g,  graph * graphInstance)  {
         }
     }
 
-    //construct graph->addressGlobalIdMapping with only mappings for addressGlobalIdMapping
-    for(map<string, unsigned long long>::iterator it=g->addressGlobalIdMapping.begin() ; it!=g->addressGlobalIdMapping.end() ; it++) {
-        if(g->localTransactionsMap.count(it->second))
-            graphInstance->addressGlobalIdMapping[it->first] = it->second;
-    }
+//    //construct graph->addressGlobalIdMapping with only mappings for addressGlobalIdMapping
+//    for(map<string, unsigned long long>::iterator it=g->addressGlobalIdMapping.begin() ; it!=g->addressGlobalIdMapping.end() ; it++) {
+//        if(g->localTransactionsMap.count(it->second))
+//            graphInstance->addressGlobalIdMapping[it->first] = it->second;
+//    }
 
     // for (map<string, unsigned long long >::iterator it=graphInstance->addressGlobalIdMapping.begin(); it!=graphInstance->addressGlobalIdMapping.end(); ++it){
     //     cout << "graphInstance->addressGlobalIdMapping: Processor Id: " << processorId << " key: " << it->first <<"  value:"<<it->second<<endl;
@@ -517,6 +517,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
     for (set<pair<string, string> >::iterator itr = g->localTransactionsSet.begin(); itr != g->localTransactionsSet.end(); itr++)
     {
         g->transactionGlobalIdSet.insert(pair<unsigned long long, unsigned long long>(g->addressGlobalIdMapping[itr->first], g->addressGlobalIdMapping[itr->second]));
+        graphInstance->addressGlobalIdMapping[itr->first] = g->addressGlobalIdMapping[itr->first];
     }
 
     int lengths[4] = { 1, 1, 1, 1};
@@ -587,7 +588,6 @@ void sortTransactions(graphData * g, graph * graphInstance) {
             }
             cout<<"sortTransactions: processorId:"<<processorId<<" got from: "<<i<<" stopcoms   metadata info: "<<receiver[i].pop<<" "<<receiver[i].forceTransactionCreate<<" "<<receiver[i].stopComms<<endl;
             cout<<"sortTransactions: processorId:"<<processorId<<" Processor:"<<i<<" sent stopcoms\n";
-            
         }
         for(unsigned long long i=0 ; i<numberOfProcessors ; i++)
             cout<<"sortTransactions: processorId:"<<processorId<<" messageReceiverTrn["<<i<<"]: "<<messageReceiverTrn[i]<<endl;
