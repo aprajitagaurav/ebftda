@@ -999,6 +999,11 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
         printf("\n");
     }
 
+    printf("Processor id: %d\n", processorId);
+    for(auto &entry1: g->addressGlobalIdMapping){
+        printf("%s: %llu\n", entry1.first.c_str(), entry1.second);
+    }
+
     // TODO : make all blacklisted addresses (nodes) as roots
     //  if a root node is present in the local address set,
     //  make the root node point to itself,  depth (D[]) of this root node is 0
