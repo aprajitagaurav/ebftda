@@ -14,6 +14,7 @@
 #include <mpi.h>
 #include <unistd.h>
 #include <map>
+#include <cstring>
 
 using namespace std;
 
@@ -154,7 +155,7 @@ void printGlobalIdTransactionSet(graphData * g){
     }
 }
 
-bool checkIfStopComms(bool arr[numberOfProcessors]){
+bool checkIfStopComms(bool arr[]){
     for (int i=0; i<numberOfProcessors; i++){
         if (!arr[i]){
             return false;
