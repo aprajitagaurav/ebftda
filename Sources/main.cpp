@@ -381,7 +381,7 @@ void todo(graphData * g) {
             messageReceiver[i] = new char[200];
 
             receiver[i].pop = false;
-            receiver[i].peek = false;
+            receiver[i].sourcePID = -1;
             receiver[i].forceTransactionCreate = false;
             receiver[i].stopComms = false;
         }
@@ -423,14 +423,14 @@ void todo(graphData * g) {
                 globalId += 1;
                 currentAddress = minString;
                 sendPop.forceTransactionCreate = true;
-                sendPop.peek = false;
+                sendPop.sourcePID = -1;
                 sendPop.pop = false;
                 sendPop.stopComms = false;
             }
 
             if (minIndex != 0){
                 receiver[minIndex].pop = false;
-                receiver[minIndex].peek = false;
+                receiver[minIndex].sourcePID = -1;
                 receiver[minIndex].forceTransactionCreate = false;
                 receiver[minIndex].stopComms = false;
 
@@ -476,7 +476,7 @@ void todo(graphData * g) {
         metaData sendData;
 
         sendData.stopComms = false;
-        sendData.peek = false;
+        sendData.sourcePID = -1;
         sendData.forceTransactionCreate = false;
         sendData.pop = false;
 
@@ -493,7 +493,7 @@ void todo(graphData * g) {
             unsigned long long globalIdReceive;
 
             popReceive.pop = false;
-            popReceive.peek = false;
+            popReceive.sourcePID = -1;
             popReceive.forceTransactionCreate = false;
             popReceive.stopComms = false;
 
@@ -510,7 +510,7 @@ void todo(graphData * g) {
 
             metaData sendData;
             sendData.stopComms = false;
-            sendData.peek = false;
+            sendData.sourcePID = -1;
             sendData.forceTransactionCreate = false;
             sendData.pop = false;
 
@@ -601,10 +601,10 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         metaData receiver[numberOfProcessors];
         unsigned long long messageReceiverTrn[numberOfProcessors];
 
-        //receiver[0].peek = false;
-//        receiver[0].pop = false;
-//        receiver[0].stopComms = false;
-//        receiver[0].forceTransactionCreate = false;
+        receiver[0].sourcePID = -1;
+        receiver[0].pop = false;
+        receiver[0].stopComms = false;
+        receiver[0].forceTransactionCreate = false;
 
         unsigned long long peekData = peekTransaction(g);        
         messageReceiverTrn[0] =  peekData;
@@ -613,7 +613,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         //cout<<"sortTransactions: processorId:"<<processorId<<" Receieving peek from all\n";
         //  receive calls from all followers
         for (int i=1 ; i<numberOfProcessors ; i++) {
-            // receiver[i].peek = false;
+            receiver[i].sourcePID = -1;
             receiver[i].pop = false;
             receiver[i].stopComms = false;
             receiver[i].forceTransactionCreate = false;
@@ -659,10 +659,12 @@ void sortTransactions(graphData * g, graph * graphInstance) {
             if (minIndex != 0) {
                 //cout<<"sortTransactions: processorId:"<<processorId<<" sending pop\n";
                 metaData sendPop;
+
                 sendPop.pop = true;
-                // sendPop.peek = false;
+                sendPop.sourcePID = -1;
                 sendPop.stopComms = false;
                 sendPop.forceTransactionCreate = false;
+
                 //cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" sourceID: "<<minGlobalId<<" pop metadata info: "<<sendPop.pop<<" "<<sendPop.forceTransactionCreate<<" "<<sendPop.stopComms<<endl;
                 //here rn
                 MPI_Send(&sendPop, 1, metaDataType, minIndex, POP_MESSAGE, MPI_COMM_WORLD);
@@ -689,7 +691,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 if(destinationProcessor == 0) {
                     //cout<<"sortTransactions: processorId:"<<processorId<<" P0 saving transaction from another Prc\n";
                     metaData actionReceive;
-                    // actionReceive.peek = false;
+                    actionReceive.sourcePID = -1;
                     actionReceive.pop = false;
                     actionReceive.stopComms = false;
                     actionReceive.forceTransactionCreate = false;
@@ -765,7 +767,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 else {
                     //cout<<"sortTransactions: processorId:"<<processorId<<" destinationProcessor: "<<destinationProcessor<<" sourceID: "<<minGlobalId<<" sending in else\n";
                     metaData sendSortedData;
-                    //sendSortedData.peek = false;
+
                     sendSortedData.pop = false;
                     sendSortedData.stopComms = false;
                     sendSortedData.forceTransactionCreate = true;
@@ -795,6 +797,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         sendStop.stopComms = true;
         sendStop.forceTransactionCreate = false;
         sendStop.pop = false;
+        sendStop.sourcePID = -1;
         // sendStop.forceTransactionCreate = false;
         
         for (int i=1 ; i<numberOfProcessors ; i++) {
@@ -812,10 +815,10 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         unsigned long long peekData = peekTransaction(g);;
         //cout<<"sortTransactions: processorId:"<<processorId<<" curr peek:"<<peekData<<"\n";
         metaData sendData;
-        // sendData.peek = false;
         sendData.pop = false;
         sendData.stopComms = false;
         sendData.forceTransactionCreate = false;
+        sendData.sourcePID = -1;
         
 
         if (g->localTransactionsMap.size() == 0){
@@ -840,7 +843,8 @@ void sortTransactions(graphData * g, graph * graphInstance) {
         while(g->localTransactionsMap.size() > 0 || stopCommsCounter < numberOfProcessors) {
             //cout<<"sortTransactions: processorId:"<<processorId<<" comms count: "<<stopCommsCounter<<"\n";
             metaData actionReceive;
-            // actionReceive.peek = false;
+
+            actionReceive.sourcePID = -1;
             actionReceive.pop = false;
             actionReceive.forceTransactionCreate = false;
             actionReceive.stopComms = false;
@@ -884,6 +888,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 sendData.pop = false;
                 sendData.forceTransactionCreate = false;
                 sendData.stopComms = false;
+                sendData.sourcePID = -1;
                 if (g->localTransactionsMap.size() == 0) {
                     sendData.stopComms = true;
                     sendStopCommsToAll = true;
@@ -910,7 +915,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                 peekData = peekTransaction(g);
                 metaData sendPeekData;
 
-                // sendData.peek = false;
+                sendData.sourcePID = -1;
                 sendPeekData.pop = false;
                 sendPeekData.forceTransactionCreate = false;
                 sendPeekData.stopComms = false;
@@ -938,9 +943,6 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     sendSortedData.forceTransactionCreate = true;
                     sendSortedData.sourcePID = processorId;
                     // cout<<"prev min:"<<sourceGlobalId<<" force metadata info: "<<sendSortedData.pop<<" "<<sendSortedData.forceTransactionCreate<<" "<<sendSortedData.stopComms<<endl;
-                    // sendSortedData.peek = false;
-                    // sendSortedData.pop = false;
-                    // sendSortedData.stopComms = false;
 
                     //cout<<"sortTransactions: processorId:"<<processorId<<" in P1 sending sourceGlobalId:"<<sourceGlobalId<<" to destinationProcessor:"<<destinationProcessor<<"\n";
                     MPI_Send(&sendSortedData, 1, metaDataType, destinationProcessor, POP_MESSAGE, MPI_COMM_WORLD);
@@ -968,6 +970,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
                     sendStop.stopComms = true;
                     sendStop.forceTransactionCreate = false;
                     sendStop.pop = false;
+                    sendStop.sourcePID = -1;
                     for (int i=1 ; i<numberOfProcessors ; i++) {
                         //cout<<"sortTransactions: processorId:"<<processorId<<" follower sending StopAllComs to all processors except me and 0\n";
                         if(i != processorId)
