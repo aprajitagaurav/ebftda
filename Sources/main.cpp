@@ -855,7 +855,7 @@ void sortTransactions(graphData * g, graph * graphInstance) {
             MPI_Recv(&actionReceive, 1, metaDataType, MPI_ANY_SOURCE, POP_MESSAGE, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             //cout<<"here\n";
             map<unsigned long long, list<unsigned long long> >::iterator it = g->localTransactionsMap.begin();
-            cout<<"sortTransactions: processorId:"<<processorId<<" prev local peek:"<<peekData <<" received actionReceive:"<<actionReceive.pop<<" "<<actionReceive.forceTransactionCreate<<" "<<actionReceive.stopComms<<" "<<actionReceive.stopComms<<"\n";
+//            cout<<"sortTransactions: processorId:"<<processorId<<" prev local peek:"<<peekData <<" received actionReceive:"<<actionReceive.pop<<" "<<actionReceive.forceTransactionCreate<<" "<<actionReceive.stopComms<<" "<<actionReceive.stopComms<<"\n";
             if(actionReceive.stopComms) {
                 stopCommsCounter++;
                 //cout<<"sortTransactions: processorId:"<<processorId<<" got Stop comms: "<<stopCommsCounter<<"\n";
