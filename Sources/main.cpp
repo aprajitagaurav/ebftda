@@ -22,7 +22,7 @@ using namespace std;
 
 int numberOfProcessors;
 int processorId;
-int fileCount = 5;
+int fileCount  = 66;
 
 #define ULLONG_MAX 18446744073709551615
 #define DEFAULT_NULL -1
@@ -1286,17 +1286,24 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
         MPI_Allreduce(&numberOfAp1, &numberOfA, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     }
 
+    printf("Processor %d done with forest creation \n", processorId);
+    fflush(stdout);
+
+    string forestFileName = "./output-logs/processor-" + to_string(processorId) + "-forest.txt";
+
+    FILE * fpForest = fopen(forestFileName.c_str(), "w");
+
     for(auto &FpEntry: Fp){
-        printf("Processor Id: %d ----> Forest key: %llu, Forest value: %llu\n", processorId, FpEntry.first, FpEntry.second);
-        fflush(stdout);
+        fprintf(fpForest, "Processor Id: %d ----> Forest key: %llu, Forest value: %llu Depth value: %llu\n", processorId, FpEntry.first, FpEntry.second, Dp[FpEntry.first]);
     }
 
-    for(auto &DpEntry: Dp){
-        printf("Processor Id: %d ----> Depth key: %llu, Depth value: %llu\n", processorId, DpEntry.first, DpEntry.second);
-        fflush(stdout);
-    }
-    //return forest
-    //return Fp;
+    fclose(fpForest);
+
+    printf("Processor %d done with forest file creation \n", processorId);
+    fflush(stdout);
+
+    // return forest
+    // return Fp;
 }
 
 int main(int argc, char** argv) {
