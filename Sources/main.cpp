@@ -1090,8 +1090,16 @@ void blacklisted_node_forest(int processorId, graph *g, vector<string> blacklist
         fflush(stdout);
 
         Sp.clear();
+        int apCtr = 0;
+        printf("Processor %d size of Ap : %lu\n", processorId, Ap.size());
     //  while loop - (while the stack Ap is not empty) pop s and find all its transactions locally such that s,t,
         while(!Ap.empty()){
+            apCtr += 1;
+
+            if (apCtr % 500000 == 0) {
+                printf("Processor %d size of Ap : %lu\n", processorId, Ap.size());
+            }
+
             unsigned long long s = Ap.top();
             // printf("Processor Id: %d --------> s: %llu\n", processorId, s);
             Ap.pop();
