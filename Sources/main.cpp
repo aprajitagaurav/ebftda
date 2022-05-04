@@ -18,7 +18,11 @@
 #include <array>
 #include <stack>
 
+#include <chrono>
+
+
 using namespace std;
+using namespace chrono;
 
 int numberOfProcessors;
 int processorId;
@@ -1330,19 +1334,34 @@ int main(int argc, char** argv) {
     graphData g;
     graph graphInstance;
 
+    auto start = high_resolution_clock::now();
     readFiles(processorId, &g);
+    auto end = high_resolution_clock::now();
+    cout << "Processor " << processorId << " reading took " << duration_cast<seconds>(end - start).count() << " seconds \n";
+    fflush(stdout);
 
+    start = high_resolution_clock::now();
     MPI_Barrier(MPI_COMM_WORLD);
 
+    end = high_resolution_clock::now();
+    printf("Processor %d barrier (before todo) reached after %lld seconds\n", processorId, duration_cast<seconds>(end - start).count());
     printf("Processor %d todo begin\n", processorId);
     fflush(stdout);
-
+    start = high_resolution_clock::now();
     todo(&g);
+    end = high_resolution_clock::now();
 
-    printf("Processor %d todo end\n", processorId);
+    printf("Processor %d todo end took %lld seconds\n", processorId, duration_cast<seconds>(end - start).count());
     fflush(stdout);
 
+    printf("Processor %d transactionsToMap begin\n", processorId);
+    fflush(stdout);
+    start = high_resolution_clock::now();
     transactionsToMap(&g, &graphInstance);
+    end = high_resolution_clock::now();
+
+    printf("Processor %d transactionsToMap end took %lld seconds\n", processorId, duration_cast<seconds>(end - start).count());
+    fflush(stdout);
 
     // printGlobalIdTransactionSet(&g);
 
@@ -1350,9 +1369,19 @@ int main(int argc, char** argv) {
 
     // createAddrMapping(&g, &graphInstance);
 
+    printf("Processor %d sortTransactions begin\n", processorId);
+    fflush(stdout);
+    start = high_resolution_clock::now();
     sortTransactions(&g, &graphInstance);
+    end = high_resolution_clock::now();
 
+    printf("Processor %d sortTransactions end took %lld seconds\n", processorId, duration_cast<seconds>(end - start).count());
+    fflush(stdout);
+
+    start = high_resolution_clock::now();
     MPI_Barrier(MPI_COMM_WORLD);
+    end = high_resolution_clock::now();
+    printf("Processor %d barrier (before forest) reached after %lld seconds\n", processorId, duration_cast<seconds>(end - start).count());
 
     vector<string> blacklistedNodes;
     blacklistedNodes.push_back("0x2a65aca4d5fc5b5c859090a6c34d164135398226");
@@ -1371,7 +1400,13 @@ int main(int argc, char** argv) {
     // }
     // cout<<"Done printing"<<endl;
 
+    start = high_resolution_clock::now();
+    printf("Processor %d sortTransactions begin\n", processorId);
+    fflush(stdout);
     blacklisted_node_forest(processorId, &graphInstance, blacklistedNodes);
+    end = high_resolution_clock::now();
+    printf("Processor %d blacklisted_node_forest end took %lld seconds\n", processorId, duration_cast<seconds>(end - start).count());
+    fflush(stdout);
 
     MPI_Finalize();
 
