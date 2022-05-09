@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --nodes=1                        # requests 3 compute servers
+#SBATCH --ntasks-per-node=20             # runs 2 tasks on each server
+#SBATCH --cpus-per-task=1                # uses 1 compute core per task
+#SBATCH --time=24:00:00
+#SBATCH --mem=400GB
+#SBATCH --job-name=exp-16
+#SBATCH --output=greene-exp16-40gb-20cpu.out
+
+module purge
+module load openmpi/intel/4.0.5           # NOTE: we are loading "openmpi" module here
+
+export LANG=C
+export LC_ALL=C
+
+mpicxx -o ebftda_run1 ./Sources/main.cpp ./Sources/Reader.cpp ./Sources/Transaction.cpp
+time srun ebftda_run1

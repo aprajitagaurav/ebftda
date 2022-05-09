@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=10
+#SBATCH --cpus-per-task=1
+#SBATCH --time=24:00:00
+#SBATCH --mem=200GB
+#SBATCH --job-name=exp-18
+#SBATCH --output=greene-exp18-40gb-40cpu.out
+
+module purge
+module load openmpi/intel/4.0.5           # NOTE: we are loading "openmpi" module here
+
+export LANG=C
+export LC_ALL=C
+
+mpicxx -o ebftda_run3 ./Sources/main.cpp ./Sources/Reader.cpp ./Sources/Transaction.cpp
+time srun ebftda_run3
